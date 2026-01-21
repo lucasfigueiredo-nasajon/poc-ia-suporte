@@ -10,7 +10,7 @@ col1, col2 = st.columns([1, 5])
 with col1:
     st.image("https://nasajon.com.br/wp-content/uploads/2020/12/logo-nasajon.png", width=100) # Logo opcional
 with col2:
-    st.title("Assistente de Suporte Inteligente")
+    st.title("Assistente de Suporte Inteligente - Nasajon")
 
 st.markdown("---")
 

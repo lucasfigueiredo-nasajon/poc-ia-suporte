@@ -6,7 +6,7 @@ import uuid
 st.set_page_config(
     page_title="Nasajon IA Suporte", 
     page_icon="🤖", 
-    layout="centered" # Layout centralizado foca melhor no chat
+    layout="centered"
 )
 
 # --- CABEÇALHO ---
@@ -30,7 +30,6 @@ with st.sidebar:
     st.header("⚙️ Contexto do Cliente")
     tenant_id = st.text_input("Tenant ID", value="1")
     
-    # Lista sincronizada com o ReceptionistAgent
     sistema = st.selectbox(
         "Sistema em Uso", 
         ["Persona SQL", "Contábil SQL", "Scritta SQL", "Estoque SQL", "Finanças SQL", "Meu RH"]
@@ -53,25 +52,22 @@ def get_avatar(role, metadata=None):
     if role == "user":
         return "👤"
     
-    # Se for o bot, decide o ícone pelo agente que respondeu
     if metadata:
         agent = metadata.get("agent", "")
-        if "receptionist" in agent: return "💁‍♀️" # Recepcionista
-        if "specialist" in agent: return "👷‍♂️"   # Especialista Técnico
-        if "ticket" in agent: return "🎫"       # Automação de Ticket
-        if "tier" in metadata and metadata["tier"] == 5: return "🚨" # Erro
+        if "receptionist" in agent: return "💁‍♀️"
+        if "specialist" in agent: return "👷‍♂️"
+        if "ticket" in agent: return "🎫"
+        if "tier" in metadata and metadata["tier"] == 5: return "🚨"
         
     return "🤖"
 
 # --- RENDERIZAÇÃO DO HISTÓRICO ---
 for message in st.session_state.messages:
-    # Define o avatar baseado nos metadados da mensagem
     avatar = get_avatar(message["role"], message.get("debug"))
     
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
         
-        # Detalhes Técnicos (Tier e Agente)
         if "debug" in message:
             meta = message["debug"]
             agent_name = meta.get("agent", "Desconhecido").replace("_", " ").title()
@@ -93,14 +89,28 @@ if prompt := st.chat_input("Olá! Em que posso ajudar?"):
         message_placeholder.markdown("🧠 *Analisando solicitação...*")
         
         try:
-            # Prepara histórico (Excluindo a msg atual para não duplicar no backend se ele já tratar isso)
-            historico_para_enviar = st.session_state.messages[:-1]
+            # --- CRUCIAL: MONTAGEM DO HISTÓRICO COM 'AGENT' ---
+            # Filtramos o session_state para criar um payload limpo,
+            # mas incluímos o campo 'agent' se ele existir na mensagem anterior.
+            # Isso ativa o Sticky Session no Backend.
+            historico_para_enviar = []
+            for msg in st.session_state.messages[:-1]: # Pega tudo menos a atual
+                msg_payload = {
+                    "role": msg["role"], 
+                    "content": msg["content"]
+                }
+                # Se salvamos quem foi o agente na rodada anterior, mandamos de volta
+                if "agent" in msg:
+                    msg_payload["agent"] = msg["agent"]
+                
+                historico_para_enviar.append(msg_payload)
+            # ---------------------------------------------------
 
             payload = {
                 "conversation_id": st.session_state.conversation_id,
                 "message": prompt,
                 "history": historico_para_enviar,
-                "context": {"sistema": sistema} # Envia o sistema selecionado como dica
+                "context": {"sistema": sistema}
             }
             
             headers = {
@@ -108,25 +118,26 @@ if prompt := st.chat_input("Olá! Em que posso ajudar?"):
                 "X-Tenant-ID": tenant_id
             }
             
-            # Chamada API
-            response = requests.post(API_URL, json=payload, headers=headers, timeout=45) # Timeout maior para o Especialista
+            response = requests.post(API_URL, json=payload, headers=headers, timeout=45)
             
             if response.status_code == 200:
                 data = response.json()
                 bot_response = data.get("response", "Não entendi.")
                 metadata = data.get("metadata", {})
                 
-                # Atualiza UI com a resposta final
+                # Extrai o nome do agente para salvar na sessão
+                agent_used = metadata.get("agent") 
+
                 message_placeholder.markdown(bot_response)
                 
-                # Salva no estado
+                # --- SALVAMENTO NO ESTADO ---
                 st.session_state.messages.append({
                     "role": "assistant", 
                     "content": bot_response,
-                    "debug": metadata
+                    "debug": metadata,
+                    "agent": agent_used # <--- Salvamos aqui para usar no loop acima na próxima vez
                 })
                 
-                # Força refresh para atualizar o ícone do bot (de 🤖 para 💁‍♀️ ou 👷‍♂️)
                 st.rerun()
                 
             else:

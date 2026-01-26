@@ -117,12 +117,6 @@ with tab_chat:
                     message_placeholder.error(f"❌ Erro {response.status_code}")
             except Exception as e:
                 message_placeholder.error(f"🔌 Erro: {str(e)}")
-
-# ---------------------------------------------------------
-# ABA 2: INGESTÃO
-# ---------------------------------------------------------
-Python
-
 # ---------------------------------------------------------
 # ABA 2: INGESTÃO (AJUSTADA PARA PIPELINE PROFISSIONAL)
 # ---------------------------------------------------------

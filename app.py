@@ -77,4 +77,12 @@ with tab_admin:
                         
                         if response.status_code == 200:
                             res = response.json()
-                            st
+                            st.success(f"✅ Sucesso! {res.get('imported')} tickets ingeridos.")
+                            st.balloons()
+                        else:
+                            st.error(f"❌ Erro na API: {response.text}")
+                    except Exception as e:
+                        st.error(f"🔌 Falha ao conectar na API de Ingestão: {e}")
+
+        except Exception as e:
+            st.error(f"❌ Erro ao ler arquivo: {e}")

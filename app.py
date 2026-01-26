@@ -7,7 +7,7 @@ import json
 st.set_page_config(
     page_title="Nasajon IA Suporte", 
     page_icon="🤖", 
-    layout="wide" # Alterado para wide para facilitar a visualização de tabelas/logs
+    layout="wide"
 )
 
 # --- ESTADO DA SESSÃO ---
@@ -24,65 +24,120 @@ with col2:
     st.title("Nasajon IA - Suporte")
     st.caption("Painel de Atendimento e Ingestão de Conhecimento")
 
+# --- SIDEBAR (RESTAURADA) ---
+with st.sidebar:
+    st.header("⚙️ Contexto do Cliente")
+    tenant_id = st.text_input("Tenant ID", value="1")
+    
+    sistema = st.selectbox(
+        "Sistema em Uso", 
+        ["Persona SQL", "Contábil SQL", "Scritta SQL", "Estoque SQL", "Finanças SQL", "Meu RH"]
+    )
+    
+    st.markdown("---")
+    if st.button("🗑️ Nova Conversa (Limpar)"):
+        st.session_state.messages = []
+        st.session_state.conversation_id = str(uuid.uuid4())
+        st.rerun()
+
 # --- DEFINIÇÃO DAS ABAS ---
-tab_chat, tab_admin = st.tabs(["💬 Chat de Suporte", "⚙️ Gestão de Conhecimento (Ingestão)"])
+tab_chat, tab_admin = st.tabs(["💬 Chat de Suporte", "⚙️ Gestão de Conhecimento"])
 
 # ---------------------------------------------------------
-# ABA 1: CHAT (Seu código original adaptado)
+# ABA 1: CHAT FUNCIONAL
 # ---------------------------------------------------------
 with tab_chat:
-    # Mova aqui toda a sua lógica de visualização de mensagens, 
-    # sidebar de contexto e o chat_input que você já usa.
-    # [Omitido por brevidade, manter exatamente como seu original]
-    st.info("Utilize a barra lateral para configurar o sistema de teste.")
+    # Função auxiliar para ícones
+    def get_avatar(role, metadata=None):
+        if role == "user": return "👤"
+        if metadata:
+            agent = metadata.get("agent", "")
+            if "receptionist" in agent: return "💁‍♀️"
+            if "specialist" in agent: return "👷‍♂️"
+            if "ticket" in agent: return "🎫"
+        return "🤖"
+
+    # RENDERIZAÇÃO DO HISTÓRICO
+    for message in st.session_state.messages:
+        avatar = get_avatar(message["role"], message.get("debug"))
+        with st.chat_message(message["role"], avatar=avatar):
+            st.markdown(message["content"])
+            if "debug" in message:
+                with st.expander("ℹ️ Bastidores"):
+                    st.json(message["debug"])
+
+    # INPUT DO USUÁRIO
+    if prompt := st.chat_input("Olá! Em que posso ajudar?"):
+        st.chat_message("user", avatar="👤").markdown(prompt)
+        st.session_state.messages.append({"role": "user", "content": prompt})
+
+        with st.chat_message("assistant", avatar="🤖"):
+            message_placeholder = st.empty()
+            message_placeholder.markdown("🧠 *Analisando solicitação...*")
+            
+            try:
+                # Recuperar API_URL dos secrets ou padrão
+                try:
+                    API_URL = st.secrets["API_URL"]
+                except:
+                    API_URL = "https://api.nasajon.app/nsj-ia-suporte/queries"
+
+                # Montagem do histórico para o backend
+                historico_para_enviar = []
+                for msg in st.session_state.messages[:-1]:
+                    msg_payload = {"role": msg["role"], "content": msg["content"]}
+                    if "agent" in msg: msg_payload["agent"] = msg["agent"]
+                    historico_para_enviar.append(msg_payload)
+
+                payload = {
+                    "conversation_id": st.session_state.conversation_id,
+                    "message": prompt,
+                    "history": historico_para_enviar,
+                    "context": {"sistema": sistema}
+                }
+                
+                headers = {"Content-Type": "application/json", "X-Tenant-ID": tenant_id}
+                
+                response = requests.post(API_URL, json=payload, headers=headers, timeout=45)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    bot_response = data.get("response", "Não entendi.")
+                    metadata = data.get("metadata", {})
+                    
+                    message_placeholder.markdown(bot_response)
+                    st.session_state.messages.append({
+                        "role": "assistant", 
+                        "content": bot_response,
+                        "debug": metadata,
+                        "agent": metadata.get("agent")
+                    })
+                    st.rerun()
+                else:
+                    message_placeholder.error(f"❌ Erro {response.status_code}")
+            except Exception as e:
+                message_placeholder.error(f"🔌 Erro: {str(e)}")
 
 # ---------------------------------------------------------
-# ABA 2: INGESTÃO (A Nova Funcionalidade)
+# ABA 2: INGESTÃO
 # ---------------------------------------------------------
 with tab_admin:
     st.header("🚀 Ingestão de Base de Conhecimento")
-    st.markdown("""
-    Este módulo processa tickets crus, aplica visão computacional em prints, 
-    classifica a utilidade e estrutura o conhecimento no **Neo4j GraphRAG**.
-    """)
-
-    uploaded_file = st.file_uploader("Arraste o arquivo 'tickets_for_llm.json'", type=['json'])
+    uploaded_file = st.file_uploader("Upload tickets_for_llm.json", type=['json'])
 
     if uploaded_file:
         try:
             raw_data = json.load(uploaded_file)
-            st.info(f"📂 Arquivo carregado: {len(raw_data)} tickets detectados.")
-
-            col_btn1, col_btn2 = st.columns(2)
-            with col_btn1:
-                clean_start = st.checkbox("Limpar banco antes de iniciar? (Reset Full)", value=False)
+            st.info(f"📂 {len(raw_data)} tickets detectados.")
             
-            if st.button("🔥 Iniciar Pipeline Completo"):
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                log_area = st.expander("📄 Logs de Processamento", expanded=True)
-
-                # Aqui fazemos a chamada para a sua API Flask
-                # Em vez de rodar o script local, chamamos a rota /ingest que você configurou
-                with st.spinner("Processando..."):
-                    try:
-                        # Endpoint que você definiu no seu Blueprint bp_prod
-                        INGEST_URL = "https://api.nasajon.app/nsj-ia-suporte/ingest" 
-                        
-                        response = requests.post(
-                            INGEST_URL, 
-                            json={"tickets": raw_data, "clear_db": clean_start},
-                            timeout=600 # Timeout longo para processamento LLM
-                        )
-                        
-                        if response.status_code == 200:
-                            res = response.json()
-                            st.success(f"✅ Sucesso! {res.get('imported')} tickets ingeridos.")
-                            st.balloons()
-                        else:
-                            st.error(f"❌ Erro na API: {response.text}")
-                    except Exception as e:
-                        st.error(f"🔌 Falha ao conectar na API de Ingestão: {e}")
-
+            if st.button("🔥 Iniciar Pipeline"):
+                # O processamento agora chama a rota /ingest via API
+                with st.spinner("Processando via Microserviço..."):
+                    INGEST_URL = "https://api.nasajon.app/nsj-ia-suporte/ingest"
+                    response = requests.post(INGEST_URL, json={"tickets": raw_data})
+                    if response.status_code == 200:
+                        st.success("Ingestão concluída!")
+                    else:
+                        st.error(f"Erro: {response.text}")
         except Exception as e:
-            st.error(f"❌ Erro ao ler arquivo: {e}")
+            st.error(f"Erro ao ler arquivo: {e}")

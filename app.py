@@ -127,17 +127,64 @@ with tab_admin:
 
     if uploaded_file:
         try:
+            # Carrega o JSON completo para contar o total disponível
             raw_data = json.load(uploaded_file)
-            st.info(f"📂 {len(raw_data)} tickets detectados.")
+            total_disponivel = len(raw_data)
+            st.info(f"📂 {total_disponivel} tickets detectados no arquivo.")
             
+            # --- NOVO SELETOR DE QUANTIDADE ---
+            st.markdown("### ⚙️ Configuração do Lote")
+            col_limit, col_mode = st.columns(2)
+            
+            with col_limit:
+                quantidade = st.number_input(
+                    "Quantidade de tickets para processar:",
+                    min_value=1,
+                    max_value=total_disponivel,
+                    value=min(100, total_disponivel), # Valor padrão sugerido
+                    step=1,
+                    help="Define quantos tickets do início da lista serão enviados para o pipeline."
+                )
+            
+            with col_mode:
+                clean_start = st.checkbox(
+                    "Reset Full (Limpar Neo4j)", 
+                    value=False,
+                    help="Se marcado, apaga todos os nós do grafo antes de iniciar a nova ingestão."
+                )
+
             if st.button("🔥 Iniciar Pipeline"):
-                # O processamento agora chama a rota /ingest via API
-                with st.spinner("Processando via Microserviço..."):
-                    INGEST_URL = "https://api.nasajon.app/nsj-ia-suporte/ingest"
-                    response = requests.post(INGEST_URL, json={"tickets": raw_data})
-                    if response.status_code == 200:
-                        st.success("Ingestão concluída!")
-                    else:
-                        st.error(f"Erro: {response.text}")
+                # Realiza o fatiamento (slice) da lista com base na escolha do usuário
+                data_to_send = raw_data[:int(quantidade)]
+                
+                with st.spinner(f"Processando lote de {quantidade} tickets via Microserviço..."):
+                    try:
+                        # Endpoint que chama a função ingest_knowledge_base no seu Flask
+                        INGEST_URL = "https://api.nasajon.app/nsj-ia-suporte/ingest"
+                        
+                        payload_ingesta = {
+                            "tickets": data_to_send,
+                            "clear_db": clean_start
+                        }
+                        
+                        # Timeout alto é importante pois o VisionService e LLMs são lentos
+                        response = requests.post(
+                            INGEST_URL, 
+                            json=payload_ingesta,
+                            timeout=900 
+                        )
+                        
+                        if response.status_code == 200:
+                            res_json = response.json()
+                            st.success(f"✅ Sucesso! {res_json.get('imported', 0)} tickets processados.")
+                            st.balloons()
+                        else:
+                            st.error(f"❌ Erro no processamento: {response.text}")
+                    
+                    except requests.exceptions.Timeout:
+                        st.warning("⚠️ O processamento está demorando mais que o esperado, mas pode continuar rodando no servidor.")
+                    except Exception as e:
+                        st.error(f"🔌 Falha de conexão: {str(e)}")
+
         except Exception as e:
-            st.error(f"Erro ao ler arquivo: {e}")
+            st.error(f"❌ Erro ao ler arquivo JSON: {e}")

@@ -61,6 +61,25 @@ def get_avatar(role, metadata=None):
         
     return "🤖"
 
+###
+def aba_ingestao(ingestion_service):
+    st.header("🚀 Ingestão de Base de Conhecimento")
+    uploaded_file = st.file_uploader("Upload tickets_for_llm.json", type=['json'])
+
+    if uploaded_file:
+        raw_data = json.load(uploaded_file)
+        if st.button("Iniciar Processamento"):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+
+            def update_ui(current, total):
+                progress = current / total
+                progress_bar.progress(progress)
+                status_text.text(f"Processando ticket {current} de {total}...")
+
+            result = ingestion_service.run_pipeline(raw_data, progress_callback=update_ui)
+            st.success(f"Ingestão concluída! {result['imported']} tickets novos no Neo4j.")
+
 # --- RENDERIZAÇÃO DO HISTÓRICO ---
 for message in st.session_state.messages:
     avatar = get_avatar(message["role"], message.get("debug"))

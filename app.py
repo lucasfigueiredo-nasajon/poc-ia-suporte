@@ -121,18 +121,21 @@ with tab_chat:
 # ---------------------------------------------------------
 # ABA 2: INGESTÃO
 # ---------------------------------------------------------
+Python
+
+# ---------------------------------------------------------
+# ABA 2: INGESTÃO (AJUSTADA PARA PIPELINE PROFISSIONAL)
+# ---------------------------------------------------------
 with tab_admin:
     st.header("🚀 Ingestão de Base de Conhecimento")
     uploaded_file = st.file_uploader("Upload tickets_for_llm.json", type=['json'])
 
     if uploaded_file:
         try:
-            # Carrega o JSON completo para contar o total disponível
             raw_data = json.load(uploaded_file)
             total_disponivel = len(raw_data)
             st.info(f"📂 {total_disponivel} tickets detectados no arquivo.")
-            
-            # --- NOVO SELETOR DE QUANTIDADE ---
+
             st.markdown("### ⚙️ Configuração do Lote")
             col_limit, col_mode = st.columns(2)
             
@@ -141,50 +144,61 @@ with tab_admin:
                     "Quantidade de tickets para processar:",
                     min_value=1,
                     max_value=total_disponivel,
-                    value=min(100, total_disponivel), # Valor padrão sugerido
-                    step=1,
-                    help="Define quantos tickets do início da lista serão enviados para o pipeline."
+                    value=min(100, total_disponivel),
+                    step=1
                 )
             
             with col_mode:
                 clean_start = st.checkbox(
                     "Reset Full (Limpar Neo4j)", 
                     value=False,
-                    help="Se marcado, apaga todos os nós do grafo antes de iniciar a nova ingestão."
+                    help="Se marcado, apaga o banco antes de iniciar. Se desmarcado, pula duplicados."
                 )
 
-            if st.button("🔥 Iniciar Pipeline"):
-                # Realiza o fatiamento (slice) da lista com base na escolha do usuário
+            if st.button("🔥 Iniciar Pipeline de IA"):
                 data_to_send = raw_data[:int(quantidade)]
                 
-                with st.spinner(f"Processando lote de {quantidade} tickets via Microserviço..."):
+                with st.spinner(f"Processando lote de {quantidade} tickets via Pipeline IA..."):
                     try:
-                        # Endpoint que chama a função ingest_knowledge_base no seu Flask
-                        INGEST_URL = "https://api.nasajon.app/nsj-ia-suporte/ingest"
+                        # ATENÇÃO: Rota atualizada para o novo IngestionController
+                        INGEST_URL = "https://api.nasajon.app/nsj-ia-suporte/ingest-pipeline"
                         
                         payload_ingesta = {
                             "tickets": data_to_send,
                             "clear_db": clean_start
                         }
                         
-                        # Timeout alto é importante pois o VisionService e LLMs são lentos
+                        headers = {"X-Tenant-ID": tenant_id}
+                        
                         response = requests.post(
                             INGEST_URL, 
                             json=payload_ingesta,
+                            headers=headers,
                             timeout=900 
                         )
                         
                         if response.status_code == 200:
                             res_json = response.json()
-                            st.success(f"✅ Sucesso! {res_json.get('imported', 0)} tickets processados.")
-                            st.balloons()
+                            imported = res_json.get('imported', 0)
+                            skipped = res_json.get('skipped', 0)
+
+                            # Exibição de métricas profissionais
+                            st.markdown("---")
+                            m_col1, m_col2, m_col3 = st.columns(3)
+                            m_col1.metric("Enviados", len(data_to_send))
+                            m_col2.metric("Novos Inseridos", imported, delta=f"+{imported}")
+                            m_col3.metric("Pulados (Deduplicação)", skipped, delta=f"-{skipped}", delta_color="inverse")
+
+                            if imported > 0:
+                                st.success(f"Pipeline finalizado! {imported} novos tickets no Neo4j.")
+                                st.balloons()
+                            else:
+                                st.warning("Todos os tickets enviados já existiam na base.")
                         else:
-                            st.error(f"❌ Erro no processamento: {response.text}")
+                            st.error(f"❌ Erro: {response.text}")
                     
-                    except requests.exceptions.Timeout:
-                        st.warning("⚠️ O processamento está demorando mais que o esperado, mas pode continuar rodando no servidor.")
                     except Exception as e:
                         st.error(f"🔌 Falha de conexão: {str(e)}")
 
         except Exception as e:
-            st.error(f"❌ Erro ao ler arquivo JSON: {e}")
+            st.error(f"❌ Erro ao ler arquivo: {e}")

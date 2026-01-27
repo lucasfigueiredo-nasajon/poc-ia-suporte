@@ -84,7 +84,7 @@ with tab_chat:
 # ABA 2: INGESTÃO E VISUALIZAÇÃO (VERSÃO FINAL + TEMPLATE)
 # ---------------------------------------------------------
 with tab_admin:
-    st.header("🚀 Ingestão de Base de Conhecimento")
+    st.header("🚀 Ingestão de Tickets")
 
     # --- 1. TEMPLATE VISUAL PARA O USUÁRIO ---
     # Define o modelo anonimizado

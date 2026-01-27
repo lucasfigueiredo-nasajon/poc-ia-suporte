@@ -197,21 +197,48 @@ with tab_admin:
 
                     status_container.update(label="✅ Processamento Concluído!", state="complete", expanded=False)
                     
-                    if final_stats:
-                        imported = final_stats.get('imported', 0)
-                        skipped = final_stats.get('skipped', 0)
-
+                    if final_stats and 'stats' in final_stats:
                         st.divider()
-                        st.markdown("### 📊 Resultado Final")
-                        m_col1, m_col2, m_col3 = st.columns(3)
-                        m_col1.metric("Enviados", len(data_to_send))
-                        m_col2.metric("Novos Inseridos", imported, delta=f"+{imported}")
-                        m_col3.metric("Pulados", skipped, delta=f"-{skipped}", delta_color="off")
+                        st.markdown("### 📊 Relatório de Ingestão")
+                        
+                        s = final_stats['stats'] # Pega o dicionário novo do backend
+                        
+                        # Linha 1: Visão Geral do Funil
+                        col1, col2, col3, col4 = st.columns(4)
+                        
+                        with col1:
+                            st.metric("1. Total Recebido", s['total_recebido'])
+                        
+                        with col2:
+                            # Tickets que já existiam (Duplicados)
+                            st.metric("2. Já Existiam", s['ja_existia'], 
+                                     delta=f"{s['ja_existia']} ignorados", delta_color="off")
+                        
+                        with col3:
+                            # Tickets Úteis (Passaram pela IA)
+                            st.metric("3. Classificados Úteis", s['classificado_util'], 
+                                     delta=f"{s['classificado_util']} aprovados")
+                            
+                        with col4:
+                            # Tickets Efetivamente Salvos no Neo4j
+                            st.metric("4. Gravados no Neo4j", s['salvo_sucesso'], 
+                                     delta=f"+{s['salvo_sucesso']}", delta_color="normal")
+                        
+                        # Linha 2: Detalhe dos Descartados
+                        st.caption("Detalhes dos tickets descartados ou com erro:")
+                        d1, d2, d3 = st.columns(3)
+                        d1.metric("Filtro Sistema (Não Persona)", s['filtrado_sistema'])
+                        d2.metric("IA Rejeitou (Inútil/Incompleto)", s['classificado_inutil'])
+                        d3.metric("Erros Técnicos", s['erro_processamento'])
 
-                        if imported > 0:
+                        if s['salvo_sucesso'] > 0:
                             st.balloons()
-                        elif imported == 0 and skipped > 0:
-                            st.warning("Todos os tickets já existiam ou foram filtrados.")
+                        elif s['erro_processamento'] > 0:
+                            st.error("Houve erros técnicos durante a gravação.")
+                        elif s['ja_existia'] == s['total_recebido']:
+                            st.warning("Nenhum dado novo: Todos os tickets já existiam no banco.")
+                        elif s['classificado_inutil'] > 0:
+                            st.warning("Os tickets foram processados, mas a IA considerou todos inúteis/incompletos.")
                 else:
                     status_container.update(label="❌ Erro na API", state="error")
                     st.error(f"HTTP {response.status_code}: {response.text}")

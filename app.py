@@ -46,10 +46,79 @@ tab_chat, tab_admin = st.tabs(["💬 Chat de Suporte", "⚙️ Gestão de Conhec
 # ---------------------------------------------------------
 # ABA 2: INGESTÃO E VISUALIZAÇÃO (VERSÃO FINAL)
 # ---------------------------------------------------------
+# ---------------------------------------------------------
+# ABA 2: INGESTÃO E VISUALIZAÇÃO (VERSÃO FINAL + TEMPLATE)
+# ---------------------------------------------------------
 with tab_admin:
     st.header("🚀 Ingestão de Base de Conhecimento")
 
-    # --- SELEÇÃO DE FONTE ---
+    # --- 1. TEMPLATE VISUAL PARA O USUÁRIO ---
+    # Define o modelo anonimizado
+    TEMPLATE_JSON = [
+      {
+        "ticket": {
+          "ticket_id": "uuid-gerado-automaticamente",
+          "numeroprotocolo": 12345678,
+          "sistema": "Persona SQL",
+          "versao_sistema": "2.0.0",
+          "tipo": "Dúvida",
+          "situacao": 3,
+          "prioridade": "Normal",
+          "ocorrencias": "S2EDU006 - DÚVIDA SOBRE CÁLCULO",
+          "canal_abertura": "portal",
+          "resumo_admin": "Erro no cálculo de férias",
+          "ultima_resposta_resumo": "Verificamos que a rubrica estava incorreta...",
+          "atendimentosituacao": "uuid-situacao"
+        },
+        "datas": {
+          "datacriacao": "2025-01-27 10:00:00+00",
+          "data_ultima_resposta": "2025-01-27 12:00:00+00",
+          "data_ultima_resposta_admin": "2025-01-27 11:30:00+00",
+          "dataconclusao": "2025-01-27 14:00:00+00"
+        },
+        "cliente": {
+          "id_cliente": "uuid-cliente",
+          "codigo_cliente": "99999",
+          "nome_cliente": "EMPRESA EXEMPLO LTDA",
+          "nome_fantasia_cliente": "EMPRESA EXEMPLO",
+          "cnpj_cliente": 12345678000199,
+          "email_contato": "contato@empresa.com.br",
+          "nome_contato": "FULANO DE TAL",
+          "telefone_contato": "11-99999-9999"
+        },
+        "suporte": {
+          "nome_equipe": "Suporte Persona",
+          "responsavel_web": "analista@nasajon.com.br"
+        },
+        "conversa": [
+          {
+            "timestamp": "2025-01-27 10:00:00+00",
+            "role": "analista",
+            "author_name": "Analista Nasajon",
+            "canal": "manual",
+            "text": "Olá, qual seria sua dúvida?",
+            "imagens": []
+          },
+          {
+            "timestamp": "2025-01-27 10:05:00+00",
+            "role": "cliente",
+            "author_name": "Fulano de Tal",
+            "canal": "portal",
+            "text": "O cálculo do evento S-1200 está retornando erro de rubrica.",
+            "imagens": ["https://exemplo.com/print_erro.png"]
+          }
+        ]
+      }
+    ]
+
+    with st.expander("ℹ️ Ver Modelo de JSON Esperado (Template)", expanded=False):
+        st.markdown("O sistema espera uma **Lista de Objetos** com a seguinte estrutura:")
+        st.json(TEMPLATE_JSON)
+        st.caption("Dica: Você pode copiar este JSON e alterar os valores para testar.")
+
+    st.markdown("---")
+
+    # --- 2. SELEÇÃO DE FONTE ---
     tipo_entrada = st.radio(
         "Como deseja inserir os tickets?", 
         ["📂 Upload de Arquivo JSON", "📝 Colar JSON Manualmente"], 
@@ -83,16 +152,15 @@ with tab_admin:
             except Exception as e:
                 st.error(f"Erro: {e}")
 
-    # --- PROCESSAMENTO (SE HOUVER DADOS) ---
+    # --- 3. PROCESSAMENTO (SE HOUVER DADOS) ---
     if raw_data:
         total_disponivel = len(raw_data)
         st.success(f"📂 {total_disponivel} tickets carregados prontos para análise.")
 
-        # --- NOVO: PRÉ-VISUALIZAÇÃO RICA ---
-        with st.expander("🔍 Pré-visualizar Tickets (Clique para ver detalhes)", expanded=False):
+        # --- PRÉ-VISUALIZAÇÃO RICA ---
+        with st.expander("🔍 Pré-visualizar Tickets Carregados", expanded=False):
             st.caption("Mostrando os 3 primeiros tickets do lote para validação:")
             
-            # Função de renderização (inline para facilitar o copy-paste)
             def _render_preview(t_data):
                 t = t_data.get('ticket', {})
                 msgs = t_data.get('conversa', [])
@@ -113,7 +181,6 @@ with tab_admin:
                             if m.get('imagens'):
                                 st.image(m['imagens'][0], width=150, caption="Imagem Anexada")
 
-            # Renderiza apenas os 3 primeiros para não travar a tela
             for item in raw_data[:3]:
                 _render_preview(item)
                 st.divider()
@@ -144,13 +211,11 @@ with tab_admin:
         if st.button("🔥 Iniciar Pipeline IA", type="primary"):
             data_to_send = raw_data[:int(quantidade)]
             
-            # Container de Status Rico (Real-Time)
             status_container = st.status("🚀 Inicializando conexão...", expanded=True)
             progress_bar = status_container.progress(0)
             current_action = status_container.empty()
             
             try:
-                # URL PROD
                 INGEST_URL = "https://api.nasajon.app/nsj-ia-suporte/ingest-pipeline"
                 
                 payload_ingesta = {
@@ -158,7 +223,6 @@ with tab_admin:
                     "clear_db": clean_start
                 }
                 
-                # Garante que tenant_id venha do sidebar (escopo global do script)
                 headers = {"Content-Type": "application/json", "X-Tenant-ID": tenant_id}
                 
                 response = requests.post(
@@ -197,38 +261,30 @@ with tab_admin:
 
                     status_container.update(label="✅ Processamento Concluído!", state="complete", expanded=False)
                     
+                    # --- DASHBOARD DETALHADO (FUNIL) ---
                     if final_stats and 'stats' in final_stats:
                         st.divider()
                         st.markdown("### 📊 Relatório de Ingestão")
                         
-                        s = final_stats['stats'] # Pega o dicionário novo do backend
+                        s = final_stats['stats'] 
                         
-                        # Linha 1: Visão Geral do Funil
                         col1, col2, col3, col4 = st.columns(4)
-                        
                         with col1:
                             st.metric("1. Total Recebido", s['total_recebido'])
-                        
                         with col2:
-                            # Tickets que já existiam (Duplicados)
                             st.metric("2. Já Existiam", s['ja_existia'], 
                                      delta=f"{s['ja_existia']} ignorados", delta_color="off")
-                        
                         with col3:
-                            # Tickets Úteis (Passaram pela IA)
                             st.metric("3. Classificados Úteis", s['classificado_util'], 
                                      delta=f"{s['classificado_util']} aprovados")
-                            
                         with col4:
-                            # Tickets Efetivamente Salvos no Neo4j
                             st.metric("4. Gravados no Neo4j", s['salvo_sucesso'], 
                                      delta=f"+{s['salvo_sucesso']}", delta_color="normal")
                         
-                        # Linha 2: Detalhe dos Descartados
                         st.caption("Detalhes dos tickets descartados ou com erro:")
                         d1, d2, d3 = st.columns(3)
-                        d1.metric("Filtro Sistema (Não Persona)", s['filtrado_sistema'])
-                        d2.metric("IA Rejeitou (Inútil/Incompleto)", s['classificado_inutil'])
+                        d1.metric("Filtro Sistema", s['filtrado_sistema'])
+                        d2.metric("IA Rejeitou", s['classificado_inutil'])
                         d3.metric("Erros Técnicos", s['erro_processamento'])
 
                         if s['salvo_sucesso'] > 0:

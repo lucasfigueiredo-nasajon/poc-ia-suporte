@@ -302,3 +302,90 @@ with tab_admin:
             except Exception as e:
                 status_container.update(label="🔌 Erro de Conexão", state="error")
                 st.error(f"Detalhes: {str(e)}")
+
+# ---------------------------------------------------------
+# ABA 3: GESTÃO DE PROMPTS (VIA API)
+# ---------------------------------------------------------
+with tab_prompts:
+    st.header("📝 Editor de Prompts do Sistema")
+    st.info("Gerencie os System Prompts, Agentes e Tools armazenados no banco.")
+
+    API_URL = "https://api.nasajon.app/nsj-ia-suporte/prompts" 
+    
+    # Mapeamento do Sistema
+    prompts_map = {
+        "Agente Especialista (Persona)": "persona_specialist",
+        # Futuros:
+        # "Tool: Extração GraphRAG": "graph_enrichment",
+        # "Tool: Gerador de Cypher": "cypher_generator"
+    }
+    
+    selected_name = st.selectbox("Selecione o Componente:", list(prompts_map.keys()))
+    selected_key = prompts_map[selected_name]
+
+    # Estado Inicial
+    if 'prompt_data' not in st.session_state:
+        st.session_state['prompt_data'] = {}
+
+    # --- 1. CARREGAR ---
+    if st.button("🔄 Carregar Dados", key="btn_load"):
+        try:
+            resp = requests.get(API_URL, params={"key": selected_key}, headers={"X-Tenant-ID": tenant_id})
+            if resp.status_code == 200:
+                st.session_state['prompt_data'] = resp.json()
+                st.success("Carregado!")
+            elif resp.status_code == 404:
+                st.warning("Prompt novo (ainda não existe no banco).")
+                st.session_state['prompt_data'] = {"prompt": "", "description": "", "target_entity": "", "source_file": ""}
+        except Exception as e:
+            st.error(f"Erro: {e}")
+
+    # Dados Atuais
+    data = st.session_state.get('prompt_data', {})
+
+    # --- 2. METADADOS (LINHAGEM) ---
+    with st.container(border=True):
+        st.markdown("#### 📍 Linhagem do Prompt")
+        c1, c2 = st.columns(2)
+        
+        # Campos Editáveis
+        target_val = st.text_input("Target Entity (Classe/Tool):", 
+                                  value=data.get('target_entity', ''),
+                                  placeholder="Ex: PersonaSpecialistAgent")
+        
+        source_val = st.text_input("Arquivo Fonte:", 
+                                  value=data.get('source_file', ''),
+                                  placeholder="Ex: nasajon/service/...")
+        
+        desc_val = st.text_input("Descrição:", 
+                                value=data.get('description', ''),
+                                placeholder="Resumo do objetivo deste prompt")
+
+    # --- 3. EDITOR DE TEXTO ---
+    new_prompt_text = st.text_area(
+        "Conteúdo do System Prompt:", 
+        value=data.get('prompt', ''),
+        height=600,
+        help="Edite o comportamento da IA aqui."
+    )
+
+    # --- 4. SALVAR ---
+    if st.button("💾 Salvar Alterações", type="primary"):
+        if len(new_prompt_text) < 5:
+            st.error("Prompt inválido.")
+        else:
+            payload = {
+                "key": selected_key,
+                "prompt": new_prompt_text,
+                "description": desc_val,
+                "target_entity": target_val,
+                "source_file": source_val
+            }
+            try:
+                resp = requests.post(API_URL, json=payload, headers={"X-Tenant-ID": tenant_id})
+                if resp.status_code == 200:
+                    st.success("✅ Salvo com sucesso!")
+                else:
+                    st.error(f"Erro: {resp.text}")
+            except Exception as e:
+                st.error(f"Erro de conexão: {e}")

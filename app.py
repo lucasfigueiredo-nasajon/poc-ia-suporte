@@ -10,6 +10,16 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- CONSTANTES & DEFAULTS ---
+BASE_URL = "https://api.nasajon.app/nsj-ia-suporte"
+# BASE_URL = "http://localhost:5000/nsj-ia-suporte" # Dev Local
+
+INGEST_URL = f"{BASE_URL}/ingest-pipeline"
+PROMPTS_URL = f"{BASE_URL}/prompts"
+
+# Define o Tenant ID fixo (já que removemos a seleção da sidebar)
+tenant_id = "1" 
+
 # --- ESTADO DA SESSÃO ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -17,31 +27,56 @@ if "conversation_id" not in st.session_state:
     st.session_state.conversation_id = str(uuid.uuid4())
 
 # --- CABEÇALHO ---
-col1, col2 = st.columns([1, 5])
+col1, col2 = st.columns([1, 6])
 with col1:
     st.image("https://nasajon.com.br/wp-content/uploads/2020/12/logo-nasajon.png", width=80)
 with col2:
     st.title("Nasajon IA - Suporte")
-    st.caption("Painel de Atendimento e Ingestão de Conhecimento")
-
-# --- SIDEBAR (RESTAURADA) ---
-with st.sidebar:
-    st.header("⚙️ Contexto do Cliente")
-    tenant_id = st.text_input("Tenant ID", value="1")
-    
-    sistema = st.selectbox(
-        "Sistema em Uso", 
-        ["Persona SQL", "Contábil SQL", "Scritta SQL", "Estoque SQL", "Finanças SQL", "Meu RH"]
-    )
-    
-    st.markdown("---")
-    if st.button("🗑️ Nova Conversa (Limpar)"):
-        st.session_state.messages = []
-        st.session_state.conversation_id = str(uuid.uuid4())
-        st.rerun()
+    st.caption(f"Painel de Atendimento Inteligente | Tenant: {tenant_id}")
 
 # --- DEFINIÇÃO DAS ABAS ---
-tab_chat, tab_admin, tab_prompts = st.tabs(["💬 Chat de Suporte", "⚙️ Ingestão", "📝 Prompts"])
+tab_chat, tab_admin, tab_prompts = st.tabs([
+    "💬 Chat de Suporte", 
+    "⚙️ Ingestão de Dados", 
+    "📝 Gestão de Prompts"
+])
+
+# ---------------------------------------------------------
+# ABA 1: CHAT DE SUPORTE
+# ---------------------------------------------------------
+with tab_chat:
+    # Botão de Limpeza (Agora no topo da aba)
+    col_btn, _ = st.columns([2, 8])
+    with col_btn:
+        if st.button("🗑️ Limpar Conversa / Reiniciar", type="secondary"):
+            st.session_state.messages = []
+            st.session_state.conversation_id = str(uuid.uuid4())
+            st.rerun()
+    
+    st.divider()
+
+    # Histórico de Mensagens
+    if not st.session_state.messages:
+        st.info("👋 Olá! O assistente virtual está pronto. Digite sua dúvida abaixo.")
+    
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # Input do Chat
+    if prompt := st.chat_input("Descreva seu problema ou dúvida..."):
+        # 1. Adiciona msg do usuário
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        
+        # 2. Placeholder para resposta (Aqui entraria a integração com /queries)
+        # with st.chat_message("assistant"):
+        #     with st.spinner("Analisando base de conhecimento..."):
+        #         response = requests.post(...) 
+        #         st.markdown(response_text)
+        #         st.session_state.messages.append({"role": "assistant", "content": response_text})
+
 # ---------------------------------------------------------
 # ABA 2: INGESTÃO E VISUALIZAÇÃO (VERSÃO FINAL)
 # ---------------------------------------------------------

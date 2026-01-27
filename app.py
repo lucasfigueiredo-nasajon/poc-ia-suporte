@@ -41,8 +41,7 @@ with st.sidebar:
         st.rerun()
 
 # --- DEFINIÇÃO DAS ABAS ---
-tab_chat, tab_admin = st.tabs(["💬 Chat de Suporte", "⚙️ Gestão de Conhecimento"])
-
+tab_chat, tab_admin, tab_prompts = st.tabs(["💬 Chat de Suporte", "⚙️ Ingestão", "📝 Prompts"])
 # ---------------------------------------------------------
 # ABA 2: INGESTÃO E VISUALIZAÇÃO (VERSÃO FINAL)
 # ---------------------------------------------------------

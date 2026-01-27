@@ -44,207 +44,178 @@ with st.sidebar:
 tab_chat, tab_admin = st.tabs(["💬 Chat de Suporte", "⚙️ Gestão de Conhecimento"])
 
 # ---------------------------------------------------------
-# ABA 1: CHAT FUNCIONAL
-# ---------------------------------------------------------
-with tab_chat:
-    # Função auxiliar para ícones
-    def get_avatar(role, metadata=None):
-        if role == "user": return "👤"
-        if metadata:
-            agent = metadata.get("agent", "")
-            if "receptionist" in agent: return "💁‍♀️"
-            if "specialist" in agent: return "👷‍♂️"
-            if "ticket" in agent: return "🎫"
-        return "🤖"
-
-    # RENDERIZAÇÃO DO HISTÓRICO
-    for message in st.session_state.messages:
-        avatar = get_avatar(message["role"], message.get("debug"))
-        with st.chat_message(message["role"], avatar=avatar):
-            st.markdown(message["content"])
-            if "debug" in message:
-                with st.expander("ℹ️ Bastidores"):
-                    st.json(message["debug"])
-
-    # INPUT DO USUÁRIO
-    if prompt := st.chat_input("Olá! Em que posso ajudar?"):
-        st.chat_message("user", avatar="👤").markdown(prompt)
-        st.session_state.messages.append({"role": "user", "content": prompt})
-
-        with st.chat_message("assistant", avatar="🤖"):
-            message_placeholder = st.empty()
-            message_placeholder.markdown("🧠 *Analisando solicitação...*")
-            
-            try:
-                # Recuperar API_URL dos secrets ou padrão
-                try:
-                    API_URL = st.secrets["API_URL"]
-                except:
-                    API_URL = "https://api.nasajon.app/nsj-ia-suporte/queries"
-
-                # Montagem do histórico para o backend
-                historico_para_enviar = []
-                for msg in st.session_state.messages[:-1]:
-                    msg_payload = {"role": msg["role"], "content": msg["content"]}
-                    if "agent" in msg: msg_payload["agent"] = msg["agent"]
-                    historico_para_enviar.append(msg_payload)
-
-                payload = {
-                    "conversation_id": st.session_state.conversation_id,
-                    "message": prompt,
-                    "history": historico_para_enviar,
-                    "context": {"sistema": sistema}
-                }
-                
-                headers = {"Content-Type": "application/json", "X-Tenant-ID": tenant_id}
-                
-                response = requests.post(API_URL, json=payload, headers=headers, timeout=45)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    bot_response = data.get("response", "Não entendi.")
-                    metadata = data.get("metadata", {})
-                    
-                    message_placeholder.markdown(bot_response)
-                    st.session_state.messages.append({
-                        "role": "assistant", 
-                        "content": bot_response,
-                        "debug": metadata,
-                        "agent": metadata.get("agent")
-                    })
-                    st.rerun()
-                else:
-                    message_placeholder.error(f"❌ Erro {response.status_code}")
-            except Exception as e:
-                message_placeholder.error(f"🔌 Erro: {str(e)}")
-# ---------------------------------------------------------
-# ABA 2: INGESTÃO (AJUSTADA PARA PIPELINE PROFISSIONAL)
+# ABA 2: INGESTÃO E VISUALIZAÇÃO (VERSÃO FINAL)
 # ---------------------------------------------------------
 with tab_admin:
     st.header("🚀 Ingestão de Base de Conhecimento")
-    uploaded_file = st.file_uploader("Upload tickets_for_llm.json", type=['json'])
 
-    if uploaded_file:
-        try:
-            raw_data = json.load(uploaded_file)
-            total_disponivel = len(raw_data)
-            st.info(f"📂 {total_disponivel} tickets detectados no arquivo.")
+    # --- SELEÇÃO DE FONTE ---
+    tipo_entrada = st.radio(
+        "Como deseja inserir os tickets?", 
+        ["📂 Upload de Arquivo JSON", "📝 Colar JSON Manualmente"], 
+        horizontal=True
+    )
 
-            st.markdown("### ⚙️ Configuração do Lote")
-            col_limit, col_mode = st.columns(2)
+    raw_data = []
+
+    # --- LÓGICA DE CARREGAMENTO ---
+    if tipo_entrada == "📂 Upload de Arquivo JSON":
+        uploaded_file = st.file_uploader("Selecione o arquivo tickets.json", type=['json'])
+        if uploaded_file:
+            try:
+                raw_data = json.load(uploaded_file)
+            except Exception as e:
+                st.error(f"Erro ao ler arquivo: {e}")
+
+    else: # Colar Manualmente
+        json_text = st.text_area(
+            "Cole a lista de tickets aqui:", 
+            height=200, 
+            placeholder='[ {"ticket": {...}}, ... ]'
+        )
+        if json_text:
+            try:
+                loaded = json.loads(json_text)
+                # Garante que seja lista mesmo se colar um único objeto
+                raw_data = [loaded] if isinstance(loaded, dict) else loaded
+            except json.JSONDecodeError:
+                st.warning("Aguardando JSON válido...")
+            except Exception as e:
+                st.error(f"Erro: {e}")
+
+    # --- PROCESSAMENTO (SE HOUVER DADOS) ---
+    if raw_data:
+        total_disponivel = len(raw_data)
+        st.success(f"📂 {total_disponivel} tickets carregados prontos para análise.")
+
+        # --- NOVO: PRÉ-VISUALIZAÇÃO RICA ---
+        with st.expander("🔍 Pré-visualizar Tickets (Clique para ver detalhes)", expanded=False):
+            st.caption("Mostrando os 3 primeiros tickets do lote para validação:")
             
-            with col_limit:
-                quantidade = st.number_input(
-                    "Quantidade de tickets para processar:",
-                    min_value=1,
-                    max_value=total_disponivel,
-                    value=min(100, total_disponivel),
-                    step=1
-                )
+            # Função de renderização (inline para facilitar o copy-paste)
+            def _render_preview(t_data):
+                t = t_data.get('ticket', {})
+                msgs = t_data.get('conversa', [])
+                
+                # Cabeçalho Compacto
+                c1, c2 = st.columns([3, 1])
+                c1.markdown(f"**{t.get('sistema')}** | Protocolo: `{t.get('numeroprotocolo')}`")
+                c1.caption(f"Resumo: {t.get('resumo_admin')}")
+                c2.markdown(f"**ID:** `{t.get('ticket_id', '')[:8]}...`")
+                
+                # Chat Preview
+                with st.container(border=True):
+                    for m in msgs:
+                        role = m.get('role', 'unknown')
+                        avatar = "🎧" if role == 'analista' else "👤"
+                        with st.chat_message(role, avatar=avatar):
+                            st.markdown(f"**{m.get('author_name')}**: {m.get('text')}")
+                            if m.get('imagens'):
+                                st.image(m['imagens'][0], width=150, caption="Imagem Anexada")
+
+            # Renderiza apenas os 3 primeiros para não travar a tela
+            for item in raw_data[:3]:
+                _render_preview(item)
+                st.divider()
+
+        st.markdown("---")
+
+        # --- CONFIGURAÇÃO DO LOTE ---
+        st.markdown("### ⚙️ Configuração do Pipeline")
+        col_limit, col_mode = st.columns(2)
+        
+        with col_limit:
+            quantidade = st.number_input(
+                "Quantidade de tickets para processar:",
+                min_value=1,
+                max_value=total_disponivel,
+                value=min(50, total_disponivel),
+                step=1
+            )
+        
+        with col_mode:
+            clean_start = st.checkbox(
+                "Reset Full (Limpar Neo4j)", 
+                value=False,
+                help="⚠️ Se marcado, apaga TODO o banco antes de iniciar."
+            )
+
+        # --- BOTÃO DE AÇÃO ---
+        if st.button("🔥 Iniciar Pipeline IA", type="primary"):
+            data_to_send = raw_data[:int(quantidade)]
             
-            with col_mode:
-                clean_start = st.checkbox(
-                    "Reset Full (Limpar Neo4j)", 
-                    value=False,
-                    help="⚠️ Se marcado, apaga TODO o banco antes de iniciar."
+            # Container de Status Rico (Real-Time)
+            status_container = st.status("🚀 Inicializando conexão...", expanded=True)
+            progress_bar = status_container.progress(0)
+            current_action = status_container.empty()
+            
+            try:
+                # URL PROD
+                INGEST_URL = "https://api.nasajon.app/nsj-ia-suporte/ingest-pipeline"
+                
+                payload_ingesta = {
+                    "tickets": data_to_send,
+                    "clear_db": clean_start
+                }
+                
+                # Garante que tenant_id venha do sidebar (escopo global do script)
+                headers = {"Content-Type": "application/json", "X-Tenant-ID": tenant_id}
+                
+                response = requests.post(
+                    INGEST_URL, 
+                    json=payload_ingesta,
+                    headers=headers,
+                    timeout=900,
+                    stream=True 
                 )
-
-            if st.button("🔥 Iniciar Pipeline IA"):
-                data_to_send = raw_data[:int(quantidade)]
                 
-                # --- INÍCIO DA INTERFACE RICA ---
-                # Cria um container expansível que mostra o log ao vivo
-                status_container = st.status("🚀 Inicializando conexão...", expanded=True)
-                progress_bar = status_container.progress(0)
+                final_stats = None
                 
-                # Placeholder para mostrar a ação atual (ex: "Analisando Imagem...")
-                current_action = status_container.empty()
-                
-                try:
-                    INGEST_URL = "https://api.nasajon.app/nsj-ia-suporte/ingest-pipeline"
-                    
-                    payload_ingesta = {
-                        "tickets": data_to_send,
-                        "clear_db": clean_start
-                    }
-                    
-                    headers = {"Content-Type": "application/json", "X-Tenant-ID": tenant_id}
-                    
-                    # stream=True é fundamental para receber os eventos um a um
-                    response = requests.post(
-                        INGEST_URL, 
-                        json=payload_ingesta,
-                        headers=headers,
-                        timeout=900,
-                        stream=True 
-                    )
-                    
-                    final_stats = None
-                    
-                    if response.status_code == 200:
-                        # Itera sobre cada linha de JSON enviada pelo Backend
-                        for line in response.iter_lines():
-                            if line:
-                                try:
-                                    event = json.loads(line.decode('utf-8'))
-                                    step = event.get('step')
-                                    msg = event.get('msg', '')
-                                    
-                                    # 1. Mensagens de Inicialização
-                                    if step == 'init':
-                                        status_container.write(f"ℹ️ {msg}")
-                                    
-                                    # 2. Barra de Progresso (Ticket a Ticket)
-                                    elif step == 'progress':
-                                        curr = event.get('current', 0)
-                                        total = event.get('total', 1)
-                                        # Atualiza a barra e o título da etapa
-                                        progress_bar.progress(curr / total)
-                                        current_action.markdown(f"**{msg}**")
-                                    
-                                    # 3. Logs Detalhados (Visão, Classificação, Grafo)
-                                    elif step == 'log':
-                                        # Escreve dentro do container (histórico)
-                                        status_container.markdown(f"`{msg}`")
-                                    
-                                    # 4. Erros
-                                    elif step == 'error':
-                                        status_container.error(msg)
-                                    
-                                    # 5. Finalização
-                                    elif step == 'final':
-                                        final_stats = event
-                                        
-                                except json.JSONDecodeError:
-                                    continue
-
-                        # Atualiza o status final da caixa
-                        status_container.update(label="✅ Processamento Concluído!", state="complete", expanded=False)
-                        
-                        # Exibe Métricas Finais
-                        if final_stats:
-                            imported = final_stats.get('imported', 0)
-                            skipped = final_stats.get('skipped', 0)
-
-                            st.divider()
-                            st.markdown("### 📊 Resultado Final")
-                            m_col1, m_col2, m_col3 = st.columns(3)
-                            m_col1.metric("Enviados", len(data_to_send))
-                            m_col2.metric("Novos Inseridos", imported, delta=f"+{imported}")
-                            m_col3.metric("Pulados (Filtro/Duplicado)", skipped, delta=f"-{skipped}", delta_color="off")
-
-                            if imported > 0:
-                                st.balloons()
-                            elif imported == 0 and skipped > 0:
-                                st.warning("Nenhum dado novo inserido (todos já existiam ou foram filtrados).")
+                if response.status_code == 200:
+                    for line in response.iter_lines():
+                        if line:
+                            try:
+                                event = json.loads(line.decode('utf-8'))
+                                step = event.get('step')
+                                msg = event.get('msg', '')
                                 
-                    else:
-                        status_container.update(label="❌ Erro na API", state="error")
-                        st.error(f"Erro HTTP {response.status_code}: {response.text}")
-                        
-                except Exception as e:
-                    status_container.update(label="🔌 Erro de Conexão", state="error")
-                    st.error(f"Detalhes: {str(e)}")
+                                if step == 'init':
+                                    status_container.write(f"ℹ️ {msg}")
+                                elif step == 'progress':
+                                    curr = event.get('current', 0)
+                                    total = event.get('total', 1)
+                                    progress_bar.progress(curr / total)
+                                    current_action.markdown(f"**{msg}**")
+                                elif step == 'log':
+                                    status_container.markdown(f"`{msg}`")
+                                elif step == 'error':
+                                    status_container.error(msg)
+                                elif step == 'final':
+                                    final_stats = event
+                            except:
+                                continue
 
-        except Exception as e:
-            st.error(f"❌ Erro ao ler arquivo JSON: {e}")
+                    status_container.update(label="✅ Processamento Concluído!", state="complete", expanded=False)
+                    
+                    if final_stats:
+                        imported = final_stats.get('imported', 0)
+                        skipped = final_stats.get('skipped', 0)
+
+                        st.divider()
+                        st.markdown("### 📊 Resultado Final")
+                        m_col1, m_col2, m_col3 = st.columns(3)
+                        m_col1.metric("Enviados", len(data_to_send))
+                        m_col2.metric("Novos Inseridos", imported, delta=f"+{imported}")
+                        m_col3.metric("Pulados", skipped, delta=f"-{skipped}", delta_color="off")
+
+                        if imported > 0:
+                            st.balloons()
+                        elif imported == 0 and skipped > 0:
+                            st.warning("Todos os tickets já existiam ou foram filtrados.")
+                else:
+                    status_container.update(label="❌ Erro na API", state="error")
+                    st.error(f"HTTP {response.status_code}: {response.text}")
+                    
+            except Exception as e:
+                status_container.update(label="🔌 Erro de Conexão", state="error")
+                st.error(f"Detalhes: {str(e)}")

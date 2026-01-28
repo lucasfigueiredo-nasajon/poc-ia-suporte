@@ -354,6 +354,7 @@ with tab_prompts:
         
         # Nível 2: Tools vinculadas a ele (com indentação visual)
         "   ↳ 🛠️ Tool: Busca Técnica (Gerador Cypher)": "tool_lookup_cypher"
+        "📥 Pipeline de Ingestão (Classificador)": "ingestion_classification"
     }
     
     selected_name = st.selectbox("Selecione o Componente:", list(prompts_map.keys()))

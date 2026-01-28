@@ -349,7 +349,7 @@ with tab_prompts:
     # Mapeamento do Sistema
     # Mapeamento do Sistema
     prompts_map = {
-        # Nível 1: O Agente Principal
+        "🛎️ Agente: Recepcionista (Triagem)": "receptionist_main",
         "🤖 Agente Especialista (Persona)": "persona_specialist",
         
         # Nível 2: Tools vinculadas a ele (com indentação visual)

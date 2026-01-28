@@ -347,11 +347,13 @@ with tab_prompts:
     API_URL = "https://api.nasajon.app/nsj-ia-suporte/prompts" 
     
     # Mapeamento do Sistema
+    # Mapeamento do Sistema
     prompts_map = {
-        "Agente Especialista (Persona)": "persona_specialist",
-        # Futuros:
-        # "Tool: Extração GraphRAG": "graph_enrichment",
-        # "Tool: Gerador de Cypher": "cypher_generator"
+        # Nível 1: O Agente Principal
+        "🤖 Agente Especialista (Persona)": "persona_specialist",
+        
+        # Nível 2: Tools vinculadas a ele (com indentação visual)
+        "   ↳ 🛠️ Tool: Busca Técnica (Gerador Cypher)": "tool_lookup_cypher"
     }
     
     selected_name = st.selectbox("Selecione o Componente:", list(prompts_map.keys()))

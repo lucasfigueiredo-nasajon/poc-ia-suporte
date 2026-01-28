@@ -351,10 +351,8 @@ with tab_prompts:
     prompts_map = {
         "🛎️ Agente: Recepcionista (Triagem)": "receptionist_main",
         "🤖 Agente Especialista (Persona)": "persona_specialist",
-        
-        # Nível 2: Tools vinculadas a ele (com indentação visual)
-        "   ↳ 🛠️ Tool: Busca Técnica (Gerador Cypher)": "tool_lookup_cypher"
-        "📥 Pipeline de Ingestão (Classificador)": "ingestion_classification"
+        "   ↳ 🛠️ Tool: Busca Técnica (Gerador Cypher)": "tool_lookup_cypher",
+        "📥 Pipeline de Ingestão (Classificador)": "ingestion_classification" # NOVO
     }
     
     selected_name = st.selectbox("Selecione o Componente:", list(prompts_map.keys()))

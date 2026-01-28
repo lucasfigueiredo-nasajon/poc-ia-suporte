@@ -350,9 +350,10 @@ with tab_prompts:
     # Mapeamento do Sistema
     prompts_map = {
         "🛎️ Agente: Recepcionista (Triagem)": "receptionist_main",
-        "🤖 Agente Especialista (Persona)": "persona_specialist",
+        "🤖 Agente: Especialista (Persona)": "persona_specialist",
         "   ↳ 🛠️ Tool: Busca Técnica (Gerador Cypher)": "tool_lookup_cypher",
-        "📥 Pipeline de Ingestão (Classificador Tickets Úteis)": "ingestion_classification" # NOVO
+        "📥 Pipeline de Ingestão (Classificador Tickets Úteis)": "ingestion_classification",
+        "📥 Pipeline de Ingestão: (Enriquecimento GraphRAG)": "ingestion_graph_enrichment"# NOVO
     }
     
     selected_name = st.selectbox("Selecione o Componente:", list(prompts_map.keys()))

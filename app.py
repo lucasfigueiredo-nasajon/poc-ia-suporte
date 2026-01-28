@@ -352,6 +352,7 @@ with tab_prompts:
         "🛎️ Agente: Recepcionista (Triagem)": "receptionist_main",
         "🤖 Agente: Especialista (Persona)": "persona_specialist",
         "   ↳ 🛠️ Tool: Busca Técnica (Gerador Cypher)": "tool_lookup_cypher",
+        "📥 Pipeline de Ingestão: (Visão Computacional OCR)": "vision_analysis",
         "📥 Pipeline de Ingestão (Classificador Tickets Úteis)": "ingestion_classification",
         "📥 Pipeline de Ingestão: (Enriquecimento GraphRAG)": "ingestion_graph_enrichment"# NOVO
     }

@@ -35,10 +35,11 @@ with col2:
     st.caption(f"Painel de Atendimento Inteligente | Tenant: {tenant_id}")
 
 # --- DEFINIÇÃO DAS ABAS ---
-tab_chat, tab_admin, tab_prompts = st.tabs([
+tab_chat, tab_admin, tab_prompts, tab_taxonomy = st.tabs([
     "💬 Chat de Suporte", 
     "⚙️ Ingestão de Dados", 
-    "📝 Gestão de Prompts"
+    "📝 Gestão de Prompts",
+    "🗂️ Gestão de Taxonomias"
 ])
 
 # ---------------------------------------------------------
@@ -426,3 +427,174 @@ with tab_prompts:
                     st.error(f"Erro: {resp.text}")
             except Exception as e:
                 st.error(f"Erro de conexão: {e}")
+
+
+# ---------------------------------------------------------
+# ABA 4: GESTÃO DE TAXONOMIAS
+# ---------------------------------------------------------
+with tab_taxonomy:
+    st.header("🗂️ Gestão de Categorias e Recursos")
+    st.info("Aqui você define a estrutura de conhecimento da IA. Use 'Recursos' para criar a hierarquia Sistema > Módulo > Funcionalidade.")
+
+    # 1. Seletor de Tipo
+    tipos_taxonomia = {
+        "Recursos (Sistemas/Módulos)": "recurso",
+        "Sintomas": "sintoma",
+        "Erros": "erro",
+        "Eventos (eSocial)": "evento",
+        "Causas": "causa",
+        "Soluções": "solucao"
+    }
+    
+    selected_label = st.selectbox("Selecione a Taxonomia:", list(tipos_taxonomia.keys()))
+    selected_type = tipos_taxonomia[selected_label]
+
+    # --- FUNÇÃO HELPER PARA BUSCAR ---
+    def fetch_nodes(t_type):
+        try:
+            resp = requests.get(TAXONOMY_URL, params={"type": t_type}, headers={"X-Tenant-ID": tenant_id})
+            if resp.status_code == 200:
+                return resp.json()
+            return []
+        except: return []
+
+    # Carrega dados
+    nodes = fetch_nodes(selected_type)
+
+    # --- 2. ÁREA DE VISUALIZAÇÃO E EDIÇÃO ---
+    col_tree, col_edit = st.columns([1, 1])
+
+    # Prepara estrutura de árvore para exibição
+    node_map = {n['id']: n for n in nodes}
+    # Adiciona campo de exibição indentado
+    tree_options = [] # Lista de tuplas (id, label_indentado)
+    
+    # Função recursiva para montar a lista visual
+    def build_tree_list(parent_id, level=0):
+        # Filtra filhos deste pai
+        children = [n for n in nodes if n['parent_id'] == parent_id]
+        for child in children:
+            prefix = "└── " * level if level > 0 else "📦 "
+            label = f"{prefix}{child['name']}"
+            tree_options.append((child['id'], label))
+            # Recurso para o próximo nível
+            build_tree_list(child['id'], level + 1)
+
+    # Inicia a construção da raiz (parent_id is None)
+    build_tree_list(None)
+    
+    # Se não tiver raiz (lista vazia), mas tiver orfãos (erro de dados), lista eles
+    if not tree_options and nodes:
+        for n in nodes: tree_options.append((n['id'], f"⚠️ {n['name']}"))
+
+    # --- COLUNA DA ESQUERDA: LISTA/ÁRVORE ---
+    with col_tree:
+        st.subheader("Estrutura Atual")
+        
+        # Selectbox que funciona como árvore
+        if tree_options:
+            selected_node_tuple = st.radio(
+                "Selecione um item para editar ou ver detalhes:",
+                options=tree_options,
+                format_func=lambda x: x[1], # Mostra o label indentado
+                label_visibility="collapsed"
+            )
+            selected_id = selected_node_tuple[0]
+            selected_node_data = node_map.get(selected_id)
+        else:
+            st.warning("Nenhum item cadastrado.")
+            selected_node_data = None
+            selected_id = None
+
+    # --- COLUNA DA DIREITA: EDIÇÃO / CRIAÇÃO ---
+    with col_edit:
+        action = st.radio("Ação:", ["Editar Selecionado", "Criar Novo Item"], horizontal=True)
+        st.divider()
+
+        if action == "Criar Novo Item":
+            st.markdown(f"#### Novo Item em: {selected_label}")
+            with st.form("new_node_form"):
+                new_name = st.text_input("Nome:")
+                new_desc = st.text_area("Descrição:")
+                
+                # Escolha do Pai (Hierarquia)
+                parent_options = [(None, "Nenhum (Raiz)")] + tree_options
+                new_parent = st.selectbox(
+                    "Pertence a (Pai):", 
+                    options=parent_options,
+                    format_func=lambda x: x[1]
+                )
+                
+                submitted = st.form_submit_button("Salvar Novo")
+                if submitted:
+                    if not new_name:
+                        st.error("Nome obrigatório.")
+                    else:
+                        payload = {
+                            "type": selected_type,
+                            "name": new_name,
+                            "description": new_desc,
+                            "parent_id": new_parent[0]
+                        }
+                        try:
+                            r = requests.post(TAXONOMY_URL, json=payload, headers={"X-Tenant-ID": tenant_id})
+                            if r.status_code == 201:
+                                st.success("Criado com sucesso!")
+                                st.rerun()
+                            else:
+                                st.error(f"Erro: {r.text}")
+                        except Exception as e:
+                            st.error(f"Erro conexão: {e}")
+
+        elif action == "Editar Selecionado" and selected_node_data:
+            st.markdown(f"#### Editando: {selected_node_data['name']}")
+            with st.form("edit_node_form"):
+                edit_name = st.text_input("Nome:", value=selected_node_data['name'])
+                edit_desc = st.text_area("Descrição:", value=selected_node_data.get('description', ''))
+                
+                # Lógica para Mover (Transferência)
+                # Remove o próprio nó e seus filhos da lista de possíveis pais para evitar ciclo
+                # (Simplificação: apenas remove o próprio nó da lista visual)
+                valid_parents = [(None, "Nenhum (Raiz)")] + [t for t in tree_options if t[0] != selected_id]
+                
+                # Encontra o índice atual do pai para setar o valor default
+                current_parent_id = selected_node_data['parent_id']
+                default_idx = 0
+                for i, (pid, _) in enumerate(valid_parents):
+                    if pid == current_parent_id:
+                        default_idx = i
+                        break
+                
+                edit_parent = st.selectbox(
+                    "Mover para (Novo Pai):", 
+                    options=valid_parents,
+                    index=default_idx,
+                    format_func=lambda x: x[1]
+                )
+                
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.form_submit_button("💾 Salvar Alterações", type="primary"):
+                        payload = {
+                            "name": edit_name,
+                            "description": edit_desc,
+                            "parent_id": edit_parent[0]
+                        }
+                        r = requests.put(f"{TAXONOMY_URL}/{selected_id}", json=payload, headers={"X-Tenant-ID": tenant_id})
+                        if r.status_code == 200:
+                            st.success("Atualizado!")
+                            st.rerun()
+                        else:
+                            st.error(f"Erro: {r.text}")
+                
+                with c2:
+                    if st.form_submit_button("🗑️ Excluir Item", type="secondary"):
+                        r = requests.delete(f"{TAXONOMY_URL}/{selected_id}", headers={"X-Tenant-ID": tenant_id})
+                        if r.status_code == 200:
+                            st.success("Excluído!")
+                            st.rerun()
+                        else:
+                            st.error(f"Erro: {r.text}")
+        
+        elif action == "Editar Selecionado" and not selected_node_data:
+            st.info("Selecione um item na lista à esquerda para editar.")

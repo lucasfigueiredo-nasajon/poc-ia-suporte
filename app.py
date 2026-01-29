@@ -45,8 +45,21 @@ tab_chat, tab_admin, tab_prompts, tab_taxonomy = st.tabs([
 # ---------------------------------------------------------
 # ABA 1: CHAT DE SUPORTE
 # ---------------------------------------------------------
+# --- CONSTANTES & DEFAULTS ---
+BASE_URL = "https://api.nasajon.app/nsj-ia-suporte"
+# BASE_URL = "http://localhost:5000/nsj-ia-suporte" # Dev Local
+
+INGEST_URL = f"{BASE_URL}/ingest-pipeline"
+PROMPTS_URL = f"{BASE_URL}/prompts"
+QUERY_URL = f"{BASE_URL}/query" # <--- ADICIONE ESSA CONSTANTE
+
+# ... (Resto das configurações iniciais mantém igual) ...
+
+# ---------------------------------------------------------
+# ABA 1: CHAT DE SUPORTE
+# ---------------------------------------------------------
 with tab_chat:
-    # Botão de Limpeza (Agora no topo da aba)
+    # Botão de Limpeza
     col_btn, _ = st.columns([2, 8])
     with col_btn:
         if st.button("🗑️ Limpar Conversa / Reiniciar", type="secondary"):
@@ -66,18 +79,51 @@ with tab_chat:
 
     # Input do Chat
     if prompt := st.chat_input("Descreva seu problema ou dúvida..."):
-        # 1. Adiciona msg do usuário
+        # 1. Adiciona msg do usuário ao histórico visual
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         
-        # 2. Placeholder para resposta (Aqui entraria a integração com /queries)
-        # with st.chat_message("assistant"):
-        #     with st.spinner("Analisando base de conhecimento..."):
-        #         response = requests.post(...) 
-        #         st.markdown(response_text)
-        #         st.session_state.messages.append({"role": "assistant", "content": response_text})
-
+        # 2. Chama a API do Backend
+        with st.chat_message("assistant"):
+            message_placeholder = st.empty()
+            full_response = ""
+            
+            with st.spinner("🧠 Analisando base de conhecimento..."):
+                try:
+                    # Payload para o Orchestrator
+                    payload = {
+                        "user_id": "streamlit_user", 
+                        "conversation_id": st.session_state.conversation_id,
+                        "message": prompt
+                    }
+                    
+                    headers = {
+                        "X-Tenant-ID": tenant_id,
+                        "Content-Type": "application/json"
+                    }
+                    
+                    # Chamada POST para a API
+                    response = requests.post(QUERY_URL, json=payload, headers=headers, timeout=60)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        # Assume que o backend devolve {"answer": "texto..."}
+                        # Ajuste a chave 'answer' se seu backend retornar outro nome (ex: 'response')
+                        full_response = data.get("answer", "⚠️ O backend respondeu, mas sem conteúdo de texto.")
+                        
+                        message_placeholder.markdown(full_response)
+                        
+                        # Salva resposta no histórico
+                        st.session_state.messages.append({"role": "assistant", "content": full_response})
+                    else:
+                        error_msg = f"❌ Erro {response.status_code}: {response.text}"
+                        message_placeholder.error(error_msg)
+                        
+                except requests.exceptions.ConnectionError:
+                    message_placeholder.error("🚨 Não foi possível conectar ao servidor. Verifique se o Backend está rodando.")
+                except Exception as e:
+                    message_placeholder.error(f"🚨 Erro inesperado: {str(e)}")
 # ---------------------------------------------------------
 # ABA 2: INGESTÃO E VISUALIZAÇÃO (VERSÃO FINAL)
 # ---------------------------------------------------------

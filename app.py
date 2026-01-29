@@ -428,7 +428,6 @@ with tab_prompts:
             except Exception as e:
                 st.error(f"Erro de conexão: {e}")
 
-
 # ---------------------------------------------------------
 # ABA 4: GESTÃO DE TAXONOMIAS
 # ---------------------------------------------------------
@@ -436,7 +435,7 @@ with tab_taxonomy:
     st.header("🗂️ Gestão de Categorias e Recursos")
     st.info("Defina a estrutura de conhecimento. Use 'Recursos' para hierarquia (Sistema > Módulo > Funcionalidade).")
 
-    # URL Específica desta aba (Certifique-se que BASE_URL está definido no topo do arquivo)
+    # URL Específica desta aba
     TAXONOMY_URL = f"{BASE_URL}/taxonomies/nodes"
 
     tipos_taxonomia = {
@@ -464,7 +463,6 @@ with tab_taxonomy:
     node_map = {n['id']: n for n in nodes}
     tree_options = [] 
     
-    # Função recursiva para montar a lista visual indentada
     def build_tree_list(parent_id, level=0):
         children = [n for n in nodes if n['parent_id'] == parent_id]
         for child in children:
@@ -475,7 +473,6 @@ with tab_taxonomy:
 
     build_tree_list(None)
     
-    # Captura nós órfãos (caso haja erro de integridade no banco)
     mapped_ids = {t[0] for t in tree_options}
     for n in nodes:
         if n['id'] not in mapped_ids:
@@ -484,14 +481,13 @@ with tab_taxonomy:
     # --- DIVISÃO DA TELA ---
     col_tree, col_edit = st.columns([1, 1])
 
-    # ... (código anterior da aba taxonomy) ...
-    
-    # --- ÁREA DE IMPORTAÇÃO EM LOTE (NOVO) ---
-    #with st.expander("📦 Importação em Lote (Carga Inicial Nasajon)"):
-    #    st.warning("Esta ação irá cadastrar produtos e módulos automaticamente na taxonomia de 'Recursos'.")
+    # ... (Lógica das colunas será renderizada abaixo da área de importação para facilitar acesso) ...
+
+    # --- ÁREA DE IMPORTAÇÃO EM LOTE ---
+    with st.expander("📦 Importação em Lote (Carga Inicial)", expanded=False):
         
-        # O JSON
-    DATA_CARGA = [
+        # 1. DADOS DE RECURSOS (SEUS DADOS ORIGINAIS)
+        DATA_RECURSOS = [
           {
             "produto": "Reforma Tributária",
             "descricao": "Soluções e atualizações dedicadas à transição e conformidade com as novas normas tributárias brasileiras.",
@@ -607,56 +603,117 @@ with tab_taxonomy:
           }
         ]
 
-        #if st.button("🗑️ LIMPAR TODAS AS TAXONOMIAS (Zerar Banco)", type="primary"):
-            # Precisaríamos de uma rota de 'delete all' ou iterar deletando
-            # Como não criamos rota de 'truncate', vamos avisar para usar SQL
-         #   st.error("Por segurança, a limpeza total deve ser feita no banco de dados com o comando: TRUNCATE TABLE taxonomy_nodes RESTART IDENTITY CASCADE;")
+        # 2. DADOS DE CAUSAS
+        DATA_CAUSAS = [
+            {"nome": "Erro Operacional / Parametrização", "descricao": "O software funcionou conforme projetado, mas os dados inseridos, parâmetros ou processos executados pelo usuário estavam incorretos."},
+            {"nome": "Defeito de Software / Bug", "descricao": "Falhas no código, erros de lógica, crashes, problemas visuais ou comportamentos inesperados do sistema."},
+            {"nome": "Falha de Ambiente / Infraestrutura", "descricao": "Problemas relacionados à rede, sistema operacional, certificados digitais locais, instalação ou hardware do cliente."},
+            {"nome": "Gestão de Acesso / Identidade", "descricao": "Bloqueios de senha, usuários inativos ou falta de permissão para rotinas específicas."},
+            {"nome": "Limitação do Sistema / By Design", "descricao": "O sistema funciona conforme projetado, mas não atende a uma necessidade específica do cliente (Feature Request ou Restrição)."},
+            {"nome": "Inconsistência de Dados / Banco", "descricao": "Dados corrompidos, registros órfãos ou necessidade de scripts de correção diretamente no banco de dados."},
+            {"nome": "Fator Externo / Terceiros", "descricao": "Erros causados por instabilidade em portais do governo (eCac, eSocial) ou arquivos gerados por terceiros."},
+            {"nome": "Dúvida / Negócio (Não Técnico)", "descricao": "Questões comerciais, dúvidas conceituais ou insatisfação com preço."},
+            {"nome": "Outro", "descricao": "Causas que não se enquadram em nenhuma das categorias acima ou não puderam ser identificadas."}
+        ]
 
-        #if st.button("🚀 Iniciar Carga de Dados (Nasajon)"):
-        #    progress_bar = st.progress(0)
-        #    status_text = st.empty()
-        #    total_items = len(DATA_CARGA)
-        #    
-        #    headers = {"X-Tenant-ID": tenant_id}
-        #    
-        #    for i, item in enumerate(DATA_CARGA):
-        #        # 1. Cria o Produto (Pai)
-        #        status_text.text(f"Criando Produto: {item['produto']}...")
-        #        payload_pai = {
-        #            "type": "recurso", # Força tipo Recurso
-        #            "name": item['produto'],
-        #            "description": item['descricao'],
-        #            "parent_id": None
-        #        }
-        #        
-        #        try:
-        #            resp = requests.post(TAXONOMY_URL, json=payload_pai, headers=headers)
-        #            if resp.status_code == 201:
-        #                parent_id = resp.json().get('id')
-        #                
-        #                # 2. Cria os Módulos (Filhos)
-        #                modulos = item.get('modulos', [])
-        #                for mod in modulos:
-        #                    payload_filho = {
-        #                        "type": "recurso",
-        #                        "name": mod['nome'],
-        #                        "description": mod['descricao'],
-        #                        "parent_id": parent_id # Vincula ao pai criado agora
-        #                    }
-        #                    requests.post(TAXONOMY_URL, json=payload_filho, headers=headers)
-        #            else:
-        #                st.error(f"Erro ao criar {item['produto']}: {resp.text}")
-        #                
-        #        except Exception as e:
-        #            st.error(f"Erro de conexão: {e}")
-        #        
-        #        # Atualiza barra
-        #        progress_bar.progress((i + 1) / total_items)
-        #    
-        #    status_text.success("✅ Carga de Produtos e Módulos finalizada!")
-        #    st.rerun()
+        # 3. DADOS DE SINTOMAS
+        DATA_SINTOMAS = [
+            {"nome": "Erro de Transmissão (Governo)", "descricao": "Falhas na comunicação com eSocial, REINF ou DCTFWeb. Geralmente retornam códigos de erro ou XML inválido."},
+            {"nome": "Erro de Cálculo / Divergência de Valor", "descricao": "O sistema funciona, mas o valor matemático final (imposto, salário, férias) não bate com o esperado pelo cliente."},
+            {"nome": "Dúvida de Processo / \"Como Fazer\"", "descricao": "Solicitação de orientação sobre como realizar uma tarefa no sistema ou dúvida de legislação aplicada."},
+            {"nome": "Dúvida de Cadastro / Configuração", "descricao": "Dificuldades em inserir dados cadastrais, vincular usuários ou parametrizar o sistema."},
+            {"nome": "Bug de Funcionalidade / Erro de Tela", "descricao": "Erros técnicos de sistema, 'crashes', mensagens de erro de programação ou funcionalidades travadas."},
+            {"nome": "Indisponibilidade / Falha de Acesso", "descricao": "Problemas de login, senha, queda de conexão ou servidor fora do ar."},
+            {"nome": "Dúvida sobre Relatório / Visualização", "descricao": "Problemas na saída de dados: relatórios em branco, layout desconfigurado ou dados não visíveis na tela."},
+            {"nome": "Solicitação de Serviço Interno / Infra", "descricao": "Demandas para a equipe interna de TI/Dados, Backups ou Atualizações de versão."},
+            {"nome": "Solicitação Administrativa (Financeiro)", "descricao": "Pedidos relacionados a boletos, pagamentos e questões contratuais."},
+            {"nome": "Interesse Comercial / Aquisição", "descricao": "Leads ou clientes querendo comprar novos módulos/sistemas."},
+            {"nome": "Risco de Churn / Insatisfação", "descricao": "Reclamações sobre preço, qualidade do serviço ou ameaça de cancelamento."},
+            {"nome": "Outro", "descricao": "Sintomas que não se enquadram em nenhuma das categorias acima."}
+        ]
 
-    # ... (código das colunas col_tree e col_edit continua abaixo) ...
+        # 4. DADOS DE SOLUÇÕES
+        DATA_SOLUCOES = [
+            {"nome": "Orientação e Educação (Procedimental)", "descricao": "O analista explicou como o sistema funciona ou indicou o caminho do menu. Nenhuma alteração técnica foi feita pelo analista, apenas instrução."},
+            {"nome": "Correção de Dados / Saneamento", "descricao": "Ação focada em corrigir registros específicos que estavam errados, duplicados ou travados (muito comum no eSocial)."},
+            {"nome": "Configuração e Parametrização", "descricao": "Alteração de configurações globais, cadastros de empresas ou regras de cálculo para mudar o comportamento do sistema."},
+            {"nome": "Intervenção Técnica / Infraestrutura", "descricao": "Soluções que exigem privilégios administrativos, acesso ao banco de dados, infraestrutura de rede ou gestão de identidade."},
+            {"nome": "Escalonamento / Correção de Bug", "descricao": "O problema não pôde ser resolvido pelo suporte e gerou uma tarefa de correção ou análise para o time de Desenvolvimento."},
+            {"nome": "Serviço Administrativo / Comercial", "descricao": "Ações que não envolvem o software diretamente, mas a relação comercial/financeira com o cliente."},
+            {"nome": "Outro", "descricao": "Soluções que não se enquadram em nenhuma das categorias acima ou não houve solução clara."}
+        ]
+
+        st.warning("⚠️ Atenção: A carga pode gerar duplicidade se os itens já existirem.")
+        if st.button("🗑️ LIMPAR TODAS AS TAXONOMIAS (Zerar Banco)", type="primary"):
+            st.error("Por segurança, a limpeza total deve ser feita no banco de dados com o comando: TRUNCATE TABLE taxonomy_nodes RESTART IDENTITY CASCADE;")
+
+        c1, c2, c3, c4 = st.columns(4)
+        
+        headers = {"X-Tenant-ID": tenant_id}
+
+        # --- BOTÃO 1: RECURSOS ---
+        if c1.button("🚀 Carga: Recursos"):
+            bar = st.progress(0); txt = st.empty()
+            total = len(DATA_RECURSOS)
+            for i, item in enumerate(DATA_RECURSOS):
+                txt.text(f"Criando Produto: {item['produto']}...")
+                try:
+                    # Cria Pai
+                    resp = requests.post(TAXONOMY_URL, json={
+                        "type": "recurso", "name": item['produto'], "description": item['descricao'], "parent_id": None
+                    }, headers=headers)
+                    if resp.status_code == 201:
+                        parent_id = resp.json().get('id')
+                        # Cria Filhos
+                        for mod in item.get('modulos', []):
+                            requests.post(TAXONOMY_URL, json={
+                                "type": "recurso", "name": mod['nome'], "description": mod['descricao'], "parent_id": parent_id
+                            }, headers=headers)
+                except Exception as e: st.error(e)
+                bar.progress((i+1)/total)
+            txt.success("Recursos importados!")
+            st.rerun()
+
+        # --- BOTÃO 2: CAUSAS ---
+        if c2.button("🚀 Carga: Causas"):
+            bar = st.progress(0); txt = st.empty()
+            total = len(DATA_CAUSAS)
+            for i, item in enumerate(DATA_CAUSAS):
+                txt.text(f"Criando Causa: {item['nome']}...")
+                requests.post(TAXONOMY_URL, json={
+                    "type": "causa", "name": item['nome'], "description": item['descricao'], "parent_id": None
+                }, headers=headers)
+                bar.progress((i+1)/total)
+            txt.success("Causas importadas!")
+            st.rerun()
+
+        # --- BOTÃO 3: SINTOMAS ---
+        if c3.button("🚀 Carga: Sintomas"):
+            bar = st.progress(0); txt = st.empty()
+            total = len(DATA_SINTOMAS)
+            for i, item in enumerate(DATA_SINTOMAS):
+                txt.text(f"Criando Sintoma: {item['nome']}...")
+                requests.post(TAXONOMY_URL, json={
+                    "type": "sintoma", "name": item['nome'], "description": item['descricao'], "parent_id": None
+                }, headers=headers)
+                bar.progress((i+1)/total)
+            txt.success("Sintomas importados!")
+            st.rerun()
+
+        # --- BOTÃO 4: SOLUÇÕES ---
+        if c4.button("🚀 Carga: Soluções"):
+            bar = st.progress(0); txt = st.empty()
+            total = len(DATA_SOLUCOES)
+            for i, item in enumerate(DATA_SOLUCOES):
+                txt.text(f"Criando Solução: {item['nome']}...")
+                requests.post(TAXONOMY_URL, json={
+                    "type": "solucao", "name": item['nome'], "description": item['descricao'], "parent_id": None
+                }, headers=headers)
+                bar.progress((i+1)/total)
+            txt.success("Soluções importadas!")
+            st.rerun()
+
+    # --- FIM DA ÁREA DE IMPORTAÇÃO ---
 
     with col_tree:
         st.subheader("Estrutura Atual")
@@ -674,7 +731,6 @@ with tab_taxonomy:
             selected_node_data = None
             selected_id = None
 
-    # --- COLUNA DA DIREITA: EDIÇÃO / CRIAÇÃO ---
     with col_edit:
         action = st.radio("Ação:", ["Editar Selecionado", "Criar Novo Item"], horizontal=True)
         st.divider()

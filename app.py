@@ -607,6 +607,11 @@ with tab_taxonomy:
           }
         ]
 
+        if st.button("🗑️ LIMPAR TODAS AS TAXONOMIAS (Zerar Banco)", type="primary"):
+            # Precisaríamos de uma rota de 'delete all' ou iterar deletando
+            # Como não criamos rota de 'truncate', vamos avisar para usar SQL
+            st.error("Por segurança, a limpeza total deve ser feita no banco de dados com o comando: TRUNCATE TABLE taxonomy_nodes RESTART IDENTITY CASCADE;")
+
         if st.button("🚀 Iniciar Carga de Dados (Nasajon)"):
             progress_bar = st.progress(0)
             status_text = st.empty()

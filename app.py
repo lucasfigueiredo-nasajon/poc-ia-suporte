@@ -485,13 +485,14 @@ with tab_taxonomy:
 
 # ... (código anterior mantido) ...
 
+    # ... (código anterior da aba taxonomy) ...
+
     # --- ÁREA DE IMPORTAÇÃO EM LOTE ---
     with st.expander("📦 Importação em Lote (Carga Inicial)", expanded=False):
         
-        # 1. DADOS DE RECURSOS (MANTIDO)
+        # 1. DADOS DE RECURSOS
         DATA_RECURSOS = [
-            # ... (seus dados de recursos anteriores) ...
-             {
+          {
             "produto": "Reforma Tributária",
             "descricao": "Soluções e atualizações dedicadas à transição e conformidade com as novas normas tributárias brasileiras.",
             "modulos": [
@@ -606,7 +607,7 @@ with tab_taxonomy:
           }
         ]
 
-        # 2. DADOS DE CAUSAS (MANTIDO)
+        # 2. DADOS DE CAUSAS
         DATA_CAUSAS = [
             {"nome": "Erro Operacional / Parametrização", "descricao": "O software funcionou conforme projetado, mas os dados inseridos, parâmetros ou processos executados pelo usuário estavam incorretos."},
             {"nome": "Defeito de Software / Bug", "descricao": "Falhas no código, erros de lógica, crashes, problemas visuais ou comportamentos inesperados do sistema."},
@@ -619,7 +620,7 @@ with tab_taxonomy:
             {"nome": "Outro", "descricao": "Causas que não se enquadram em nenhuma das categorias acima ou não puderam ser identificadas."}
         ]
 
-        # 3. DADOS DE SINTOMAS (MANTIDO)
+        # 3. DADOS DE SINTOMAS
         DATA_SINTOMAS = [
             {"nome": "Erro de Transmissão (Governo)", "descricao": "Falhas na comunicação com eSocial, REINF ou DCTFWeb. Geralmente retornam códigos de erro ou XML inválido."},
             {"nome": "Erro de Cálculo / Divergência de Valor", "descricao": "O sistema funciona, mas o valor matemático final (imposto, salário, férias) não bate com o esperado pelo cliente."},
@@ -635,7 +636,7 @@ with tab_taxonomy:
             {"nome": "Outro", "descricao": "Sintomas que não se enquadram em nenhuma das categorias acima."}
         ]
 
-        # 4. DADOS DE SOLUÇÕES (MANTIDO)
+        # 4. DADOS DE SOLUÇÕES
         DATA_SOLUCOES = [
             {"nome": "Orientação e Educação (Procedimental)", "descricao": "O analista explicou como o sistema funciona ou indicou o caminho do menu. Nenhuma alteração técnica foi feita pelo analista, apenas instrução."},
             {"nome": "Correção de Dados / Saneamento", "descricao": "Ação focada em corrigir registros específicos que estavam errados, duplicados ou travados (muito comum no eSocial)."},
@@ -646,7 +647,7 @@ with tab_taxonomy:
             {"nome": "Outro", "descricao": "Soluções que não se enquadram em nenhuma das categorias acima ou não houve solução clara."}
         ]
 
-        # 5. DADOS DE ERROS (NOVO)
+        # 5. DADOS DE ERROS
         DATA_ERROS = [
             {"codigo": "17", "descricao": "Erro na estrutura do arquivo XML. Geralmente ocorre por campos obrigatórios em branco ou caracteres inválidos em cadastros (ex: CPF, CRM ou CNAE)."},
             {"codigo": "105", "descricao": "O evento a ser excluído ou retificado não foi localizado na base de dados do eSocial. Ocorre quando o sistema tenta alterar algo que ainda não foi aceito pelo governo."},
@@ -672,12 +673,87 @@ with tab_taxonomy:
             {"codigo": "Violação de PK", "descricao": "Erro de banco de dados (Primary Key). Tentativa de inserir um registro (como uma rubrica ou funcionário) que já possui o mesmo identificador único no SQL."}
         ]
 
+        # 6. DADOS DE EVENTOS ESOCIAL (NOVO)
+        DATA_EVENTOS = {
+            "Evento_Inicial": {
+                "descricao": "Evento que identifica o empregador (classificação fiscal e estrutura) e deve ser o primeiro a ser enviado para cadastramento inicial de vínculos ativos.",
+                "eventos": [
+                    {"codigo": "S-1000", "nome": "Informações do Empregador/Contribuinte/Órgão Público"}
+                ]
+            },
+            "Eventos_de_Tabela": {
+                "descricao": "Informações que se repetem em diversos eventos periódicos e não-periódicos. Devem ser mantidas atualizadas via retificação sempre que houver alteração de validade.",
+                "eventos": [
+                    {"codigo": "S-1005", "nome": "Tabela de Estabelecimentos, Obras ou Unidades de Órgãos Públicos"},
+                    {"codigo": "S-1010", "nome": "Tabela de Rubricas"},
+                    {"codigo": "S-1020", "nome": "Tabela de Lotações Tributárias"},
+                    {"codigo": "S-1070", "nome": "Tabela de Processos Administrativos/Judiciais"}
+                ]
+            },
+            "Eventos_Nao_Periodicos": {
+                "descricao": "Acobertam acontecimentos sem data pré-fixada (admissões, alterações salariais, acidentes, demissões).",
+                "eventos": [
+                    {"codigo": "S-2190", "nome": "Admissão de Trabalhador – Registro Preliminar"},
+                    {"codigo": "S-2200", "nome": "Cadastramento Inicial do Vínculo e Admissão/Ingresso de Trabalhador"},
+                    {"codigo": "S-2205", "nome": "Alteração de Dados Cadastrais do Trabalhador"},
+                    {"codigo": "S-2206", "nome": "Alteração de Contrato de Trabalho"},
+                    {"codigo": "S-2210", "nome": "Comunicação de Acidente de Trabalho"},
+                    {"codigo": "S-2220", "nome": "Monitoramento da Saúde do Trabalhador"},
+                    {"codigo": "S-2230", "nome": "Afastamento Temporário"},
+                    {"codigo": "S-2231", "nome": "Cessão/Exercício em Outro Órgão"},
+                    {"codigo": "S-2240", "nome": "Condições Ambientais do Trabalho – Fatores de Risco"},
+                    {"codigo": "S-2298", "nome": "Reintegração"},
+                    {"codigo": "S-2299", "nome": "Desligamento"},
+                    {"codigo": "S-2300", "nome": "Trabalhador Sem Vínculo de Emprego/Estatutário – Início"},
+                    {"codigo": "S-2306", "nome": "Trabalhador Sem Vínculo de Emprego/Estatutário – Alteração Contratual"},
+                    {"codigo": "S-2399", "nome": "Trabalhador Sem Vínculo de Emprego/Estatutário – Término"},
+                    {"codigo": "S-2400", "nome": "Cadastro de Benefícios Previdenciários – RPPS"},
+                    {"codigo": "S-2405", "nome": "Cadastro de Beneficiário – Entes Públicos – Alteração"},
+                    {"codigo": "S-2410", "nome": "Cadastro de Benefício – Entes Públicos – Início"},
+                    {"codigo": "S-2416", "nome": "Cadastro de Benefício – Entes Públicos – Alteração"},
+                    {"codigo": "S-2418", "nome": "Reativação de Benefício – Entes Públicos"},
+                    {"codigo": "S-2420", "nome": "Cadastro de Benefício – Entes Públicos – Término"},
+                    {"codigo": "S-2500", "nome": "Processo Trabalhista"},
+                    {"codigo": "S-2501", "nome": "Informações de Tributos Decorrentes de Processo Trabalhista"},
+                    {"codigo": "S-3000", "nome": "Exclusão de eventos"},
+                    {"codigo": "S-5001", "nome": "Informações das contribuições sociais por trabalhador"},
+                    {"codigo": "S-5002", "nome": "Imposto de Renda Retido na Fonte"},
+                    {"codigo": "S-5003", "nome": "Informações do FGTS por Trabalhador"}
+                ]
+            },
+            "Eventos_Periodicos": {
+                "descricao": "Relacionados a acontecimentos com datas fixas, como a folha de pagamentos.",
+                "eventos": [
+                    {"codigo": "S-1200", "nome": "Remuneração de trabalhador vinculado ao Regime Geral de Previd. Social"},
+                    {"codigo": "S-1202", "nome": "Remuneração de servidor vinculado a Regime Próprio de Previd. Social"},
+                    {"codigo": "S-1207", "nome": "Benefícios previdenciários – RPPS"},
+                    {"codigo": "S-1210", "nome": "Pagamentos de Rendimentos do Trabalho"},
+                    {"codigo": "S-1260", "nome": "Comercialização da Produção Rural Pessoa Física"},
+                    {"codigo": "S-1270", "nome": "Contratação de Trabalhadores Avulsos Não Portuários"},
+                    {"codigo": "S-1280", "nome": "Informações Complementares aos Eventos Periódicos"},
+                    {"codigo": "S-1298", "nome": "Reabertura dos Eventos Periódicos"},
+                    {"codigo": "S-1299", "nome": "Fechamento dos Eventos Periódicos"}
+                ]
+            },
+            "Eventos_Excluidos_Simplificado": {
+                "descricao": "Eventos que deixaram de existir ou foram absorvidos no eSocial Simplificado (outubro/2021).",
+                "eventos": [
+                    {"codigo": "S-1030", "nome": "Tabela de Cargos/Empregos Públicos"},
+                    {"codigo": "S-1050", "nome": "Tabela de Horários/Turnos de Trabalho"},
+                    {"codigo": "S-1060", "nome": "Tabela de Ambientes de Trabalho"},
+                    {"codigo": "S-1250", "nome": "Aquisição de Produção Rural"},
+                    {"codigo": "S-2250", "nome": "Aviso Prévio"},
+                    {"codigo": "S-2260", "nome": "Convocação para Trabalho Intermitente"}
+                ]
+            }
+        }
+
         st.warning("⚠️ Atenção: A carga pode gerar duplicidade se os itens já existirem.")
         if st.button("🗑️ LIMPAR TODAS AS TAXONOMIAS (Zerar Banco)", type="primary"):
             st.error("Por segurança, a limpeza total deve ser feita no banco de dados com o comando: TRUNCATE TABLE taxonomy_nodes RESTART IDENTITY CASCADE;")
 
-        # AUMENTADO PARA 5 COLUNAS PARA CABER OS ERROS
-        c1, c2, c3, c4, c5 = st.columns(5)
+        # AUMENTADO PARA 6 COLUNAS
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
         
         headers = {"X-Tenant-ID": tenant_id}
 
@@ -741,18 +817,56 @@ with tab_taxonomy:
             txt.success("Soluções importadas!")
             st.rerun()
 
-        # --- BOTÃO 5: ERROS (NOVO) ---
+        # --- BOTÃO 5: ERROS ---
         if c5.button("🚀 Carga: Erros"):
             bar = st.progress(0); txt = st.empty()
             total = len(DATA_ERROS)
             for i, item in enumerate(DATA_ERROS):
                 txt.text(f"Criando Erro: {item['codigo']}...")
-                # Mapeamento: codigo -> name, descricao -> description
                 requests.post(TAXONOMY_URL, json={
                     "type": "erro", "name": item['codigo'], "description": item['descricao'], "parent_id": None
                 }, headers=headers)
                 bar.progress((i+1)/total)
             txt.success("Erros importados!")
+            st.rerun()
+
+        # --- BOTÃO 6: EVENTOS (NOVO) ---
+        if c6.button("🚀 Carga: Eventos"):
+            bar = st.progress(0); txt = st.empty()
+            total = len(DATA_EVENTOS)
+            # Como é um dicionário, iteramos chaves e valores
+            for i, (categoria_key, dados) in enumerate(DATA_EVENTOS.items()):
+                # Formata o nome da categoria (Evento_Inicial -> Evento Inicial)
+                cat_name = categoria_key.replace("_", " ")
+                txt.text(f"Criando Categoria: {cat_name}...")
+                
+                try:
+                    # 1. Cria a Categoria (Pai)
+                    resp = requests.post(TAXONOMY_URL, json={
+                        "type": "evento", 
+                        "name": cat_name, 
+                        "description": dados['descricao'], 
+                        "parent_id": None
+                    }, headers=headers)
+                    
+                    if resp.status_code == 201:
+                        parent_id = resp.json().get('id')
+                        
+                        # 2. Cria os Eventos (Filhos)
+                        for evento in dados['eventos']:
+                            requests.post(TAXONOMY_URL, json={
+                                "type": "evento", 
+                                "name": evento['codigo'], # Ex: S-1000
+                                "description": evento['nome'], # Ex: Informações do Empregador
+                                "parent_id": parent_id
+                            }, headers=headers)
+                    else:
+                        st.error(f"Erro ao criar categoria {cat_name}: {resp.text}")
+
+                except Exception as e: st.error(f"Erro: {e}")
+                
+                bar.progress((i+1)/total)
+            txt.success("Eventos importados!")
             st.rerun()
 
     

@@ -491,7 +491,7 @@ with tab_taxonomy:
     #    st.warning("Esta ação irá cadastrar produtos e módulos automaticamente na taxonomia de 'Recursos'.")
         
         # O JSON
-        DATA_CARGA = [
+    DATA_CARGA = [
           {
             "produto": "Reforma Tributária",
             "descricao": "Soluções e atualizações dedicadas à transição e conformidade com as novas normas tributárias brasileiras.",

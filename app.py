@@ -487,8 +487,8 @@ with tab_taxonomy:
     # ... (código anterior da aba taxonomy) ...
     
     # --- ÁREA DE IMPORTAÇÃO EM LOTE (NOVO) ---
-    with st.expander("📦 Importação em Lote (Carga Inicial Nasajon)"):
-        st.warning("Esta ação irá cadastrar produtos e módulos automaticamente na taxonomia de 'Recursos'.")
+    #with st.expander("📦 Importação em Lote (Carga Inicial Nasajon)"):
+    #    st.warning("Esta ação irá cadastrar produtos e módulos automaticamente na taxonomia de 'Recursos'.")
         
         # O JSON
         DATA_CARGA = [

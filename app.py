@@ -500,16 +500,17 @@ with tab_taxonomy:
             selected_node_data = None
             selected_id = None
 
+    # --- COLUNA DA DIREITA: EDIÇÃO / CRIAÇÃO ---
     with col_edit:
         action = st.radio("Ação:", ["Editar Selecionado", "Criar Novo Item"], horizontal=True)
         st.divider()
 
-        # FORMULÁRIO UNIFICADO
-        with st.form("taxonomy_form"):
+        # CASO 1: CRIAÇÃO (Formulário Próprio)
+        if action == "Criar Novo Item":
+            st.markdown(f"#### Novo Item em: {selected_label}")
             
-            # --- MODO CRIAÇÃO ---
-            if action == "Criar Novo Item":
-                st.markdown(f"#### Novo em: {selected_label}")
+            # Form específico para criação
+            with st.form("create_node_form"):
                 form_name = st.text_input("Nome (Curto):")
                 form_desc = st.text_area("Descrição:")
                 
@@ -517,7 +518,7 @@ with tab_taxonomy:
                 parent_opts = [(None, "Nenhum (Raiz)")] + tree_options
                 form_parent = st.selectbox("Pai (Hierarquia):", options=parent_opts, format_func=lambda x: x[1])
                 
-                # [NOVO] METADADOS ESPECÍFICOS
+                # METADADOS ESPECÍFICOS
                 form_meta = {}
                 if selected_type == 'causa':
                     form_meta['responsabilidade'] = st.selectbox("Responsabilidade:", ["Suporte", "Cliente", "Desenvolvimento", "Infra"])
@@ -537,7 +538,7 @@ with tab_taxonomy:
                             "name": form_name,
                             "description": form_desc,
                             "parent_id": form_parent[0],
-                            "metadata": form_meta # Envia o JSON extra
+                            "metadata": form_meta
                         }
                         try:
                             r = requests.post(TAXONOMY_URL, json=payload, headers={"X-Tenant-ID": tenant_id})
@@ -547,61 +548,67 @@ with tab_taxonomy:
                             else: st.error(r.text)
                         except Exception as e: st.error(f"Erro: {e}")
 
-            # --- MODO EDIÇÃO ---
-            elif action == "Editar Selecionado" and selected_node_data:
+        # CASO 2: EDIÇÃO (Só mostra o form SE tiver item selecionado)
+        elif action == "Editar Selecionado":
+            if selected_node_data:
                 st.markdown(f"#### Editando: {selected_node_data['name']}")
                 
-                # Preenche com dados existentes
-                form_name = st.text_input("Nome:", value=selected_node_data['name'])
-                form_desc = st.text_area("Descrição:", value=selected_node_data.get('description', ''))
-                
-                # Lógica de Pai (Remove o próprio nó da lista para evitar ciclo)
-                valid_parents = [(None, "Nenhum (Raiz)")] + [t for t in tree_options if t[0] != selected_id]
-                curr_pid = selected_node_data['parent_id']
-                # Encontra o índice do pai atual na lista
-                def_idx = next((i for i, v in enumerate(valid_parents) if v[0] == curr_pid), 0)
-                
-                form_parent = st.selectbox("Pai:", options=valid_parents, index=def_idx, format_func=lambda x: x[1])
-                
-                # [NOVO] RECUPERAÇÃO DE METADADOS
-                curr_meta = selected_node_data.get('metadata', {}) or {}
-                form_meta = {}
-                
-                if selected_type == 'causa':
-                    opcoes_resp = ["Suporte", "Cliente", "Desenvolvimento", "Infra"]
-                    val_atual = curr_meta.get('responsabilidade', 'Suporte')
-                    idx_resp = opcoes_resp.index(val_atual) if val_atual in opcoes_resp else 0
-                    form_meta['responsabilidade'] = st.selectbox("Responsabilidade:", opcoes_resp, index=idx_resp)
-                
-                if selected_type in ['sintoma', 'erro', 'solucao']:
-                    # Converte lista de volta para string com ponto e vírgula
-                    curr_exs = "; ".join(curr_meta.get('exemplos', []))
-                    ex_text = st.text_area("Exemplos (sep. por ;):", value=curr_exs)
-                    form_meta['exemplos'] = [x.strip() for x in ex_text.split(';') if x.strip()]
-                
-                # Botões lado a lado
-                c1, c2 = st.columns(2)
-                if c1.form_submit_button("💾 Atualizar"):
-                    payload = {
-                        "name": form_name, "description": form_desc, 
-                        "parent_id": form_parent[0], "metadata": form_meta
-                    }
-                    try:
-                        r = requests.put(f"{TAXONOMY_URL}/{selected_id}", json=payload, headers={"X-Tenant-ID": tenant_id})
-                        if r.status_code == 200:
-                            st.success("Atualizado!")
-                            st.rerun()
-                        else: st.error(f"Erro: {r.text}")
-                    except Exception as e: st.error(e)
-                
-                if c2.form_submit_button("🗑️ Deletar", type="secondary"):
-                    try:
-                        r = requests.delete(f"{TAXONOMY_URL}/{selected_id}", headers={"X-Tenant-ID": tenant_id})
-                        if r.status_code == 200:
-                            st.success("Deletado!")
-                            st.rerun()
-                        else: st.error(f"Erro: {r.text}")
-                    except Exception as e: st.error(e)
+                # Form específico para edição
+                with st.form("edit_node_form"):
+                    form_name = st.text_input("Nome:", value=selected_node_data['name'])
+                    form_desc = st.text_area("Descrição:", value=selected_node_data.get('description', ''))
+                    
+                    # Hierarquia (evita ciclo removendo o próprio ID)
+                    valid_parents = [(None, "Nenhum (Raiz)")] + [t for t in tree_options if t[0] != selected_id]
+                    curr_pid = selected_node_data['parent_id']
+                    def_idx = next((i for i, v in enumerate(valid_parents) if v[0] == curr_pid), 0)
+                    
+                    form_parent = st.selectbox("Pai:", options=valid_parents, index=def_idx, format_func=lambda x: x[1])
+                    
+                    # RECUPERA METADADOS
+                    curr_meta = selected_node_data.get('metadata', {}) or {}
+                    form_meta = {}
+                    
+                    if selected_type == 'causa':
+                        opcoes_resp = ["Suporte", "Cliente", "Desenvolvimento", "Infra"]
+                        val_atual = curr_meta.get('responsabilidade', 'Suporte')
+                        idx_resp = opcoes_resp.index(val_atual) if val_atual in opcoes_resp else 0
+                        form_meta['responsabilidade'] = st.selectbox("Responsabilidade:", opcoes_resp, index=idx_resp)
+                    
+                    if selected_type in ['sintoma', 'erro', 'solucao']:
+                        curr_exs = "; ".join(curr_meta.get('exemplos', []))
+                        ex_text = st.text_area("Exemplos (sep. por ;):", value=curr_exs)
+                        form_meta['exemplos'] = [x.strip() for x in ex_text.split(';') if x.strip()]
+                    
+                    # Botões de Ação
+                    c1, c2 = st.columns(2)
+                    # Agora os botões estão garantidos dentro deste form
+                    update_click = c1.form_submit_button("💾 Atualizar")
+                    delete_click = c2.form_submit_button("🗑️ Deletar", type="primary")
+
+                    if update_click:
+                        payload = {
+                            "name": form_name, "description": form_desc, 
+                            "parent_id": form_parent[0], "metadata": form_meta
+                        }
+                        try:
+                            r = requests.put(f"{TAXONOMY_URL}/{selected_id}", json=payload, headers={"X-Tenant-ID": tenant_id})
+                            if r.status_code == 200:
+                                st.success("Atualizado!")
+                                st.rerun()
+                            else: st.error(f"Erro: {r.text}")
+                        except Exception as e: st.error(e)
+                    
+                    if delete_click:
+                        try:
+                            r = requests.delete(f"{TAXONOMY_URL}/{selected_id}", headers={"X-Tenant-ID": tenant_id})
+                            if r.status_code == 200:
+                                st.success("Deletado!")
+                                st.rerun()
+                            else: st.error(f"Erro: {r.text}")
+                        except Exception as e: st.error(e)
 
             else:
-                st.info("Selecione um item à esquerda para editar.")
+                # CASO 3: NENHUM ITEM SELECIONADO
+                # Aqui NÃO abrimos st.form nenhum, então não dá erro de "Missing Submit Button"
+                st.info("👈 Selecione um item na lista à esquerda para editar.")

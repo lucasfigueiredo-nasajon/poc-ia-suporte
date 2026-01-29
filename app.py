@@ -484,6 +484,175 @@ with tab_taxonomy:
     # --- DIVISÃO DA TELA ---
     col_tree, col_edit = st.columns([1, 1])
 
+    # ... (código anterior da aba taxonomy) ...
+    
+    # --- ÁREA DE IMPORTAÇÃO EM LOTE (NOVO) ---
+    with st.expander("📦 Importação em Lote (Carga Inicial Nasajon)"):
+        st.warning("Esta ação irá cadastrar produtos e módulos automaticamente na taxonomia de 'Recursos'.")
+        
+        # O JSON que você forneceu
+        DATA_CARGA = [
+          {
+            "produto": "Reforma Tributária",
+            "descricao": "Soluções e atualizações dedicadas à transição e conformidade com as novas normas tributárias brasileiras.",
+            "modulos": [
+              { "nome": "Reforma Tributária", "descricao": "Monitoramento de alíquotas, cálculos de IBS/CBS e adaptação de cadastros fiscais." }
+            ]
+          },
+          {
+            "produto": "Geral",
+            "descricao": "Recursos transversais e conteúdos informativos aplicáveis a todo o ecossistema Nasajon.",
+            "modulos": [
+              { "nome": "Comum a todos os sistemas", "descricao": "Configurações globais de banco de dados, usuários e permissões de acesso." },
+              { "nome": "Live - Assuntos Gerais", "descricao": "Acesso a transmissões ao vivo sobre atualizações de legislação e software." },
+              { "nome": "Sprint Notes", "descricao": "Documentação técnica sobre as melhorias e correções implementadas em cada ciclo de desenvolvimento." }
+            ]
+          },
+          {
+            "produto": "Persona SQL",
+            "descricao": "Sistema completo para gestão de Folha de Pagamento e Recursos Humanos.",
+            "modulos": [
+              { "nome": "eSocial", "descricao": "Gerenciamento e transmissão de eventos periódicos e não periódicos para o governo." },
+              { "nome": "Cálculos e Rotinas", "descricao": "Processamento de folha, férias, 13º salário e rescisões contratuais." },
+              { "nome": "Arquivos Oficiais", "descricao": "Geração de guias como FGTS, DARF e declarações anuais (DIRF/RAIS)." },
+              { "nome": "Módulo de Ponto", "descricao": "Integração de batidas e tratamento de horas extras/faltas para a folha." },
+              { "nome": "Listagens e Relatórios", "descricao": "Emissão de contracheques, fichas financeiras e relatórios gerenciais de RH." },
+              { "nome": "Cadastros e Configurações", "descricao": "Manutenção de dados de funcionários, sindicatos e tabelas de incidência." },
+              { "nome": "Integração", "descricao": "Conexão de dados contábeis e financeiros com outros sistemas SQL." }
+            ]
+          },
+          {
+            "produto": "Ponto Web",
+            "descricao": "Solução em nuvem para controle de jornada e gestão de frequência.",
+            "modulos": [
+              { "nome": "Configuração", "descricao": "Definição de horários, escalas e regras de tolerância de atrasos." },
+              { "nome": "Tratamento Ponto", "descricao": "Ajustes de marcações, justificativas de ausências e abonos." },
+              { "nome": "Dúvidas Frequentes", "descricao": "Base de conhecimento interna para suporte ao usuário final." },
+              { "nome": "Diversos", "descricao": "Funcionalidades auxiliares e manutenções técnicas do sistema web." }
+            ]
+          },
+          {
+            "produto": "Meu RH",
+            "descricao": "Portal de autoatendimento para colaboradores e gestores de equipe.",
+            "modulos": [
+              { "nome": "Apontamento", "descricao": "Registro de presença via web ou aplicativo móvel." },
+              { "nome": "Funcionário", "descricao": "Perfil pessoal com histórico de dados e documentos do colaborador." },
+              { "nome": "Quadro de Horários", "descricao": "Visualização da jornada de trabalho e turnos alocados." },
+              { "nome": "Cadastro", "descricao": "Atualização cadastral e envio de documentos pelo colaborador." },
+              { "nome": "Solicitações", "descricao": "Fluxo de pedidos de reembolso, declarações e alterações." },
+              { "nome": "Férias", "descricao": "Consulta de saldo de períodos aquisitivos e pedidos de gozo." },
+              { "nome": "Relatórios", "descricao": "Extratos de horas, recibos e informes de rendimentos." },
+              { "nome": "Configurações", "descricao": "Personalização de níveis de acesso e notificações do portal." },
+              { "nome": "Organograma", "descricao": "Visualização hierárquica da estrutura da empresa." },
+              { "nome": "Uso Interno", "descricao": "Área restrita para administração de RH e logs do sistema." },
+              { "nome": "Simulações", "descricao": "Cálculos prévios de proventos e descontos para planejamento." },
+              { "nome": "Movimentos", "descricao": "Registro de alterações de cargo, salário ou departamento." },
+              { "nome": "Escala", "descricao": "Gestão de revezamentos e folgas para jornadas complexas." },
+              { "nome": "Arquivos", "descricao": "Repositório de documentos digitais e GED (Gestão Eletrônica de Documentos)." },
+              { "nome": "Colaboradores", "descricao": "Visão do gestor sobre sua equipe direta e subordinados." }
+            ]
+          },
+          {
+            "produto": "Scritta SQL",
+            "descricao": "Software de escrita fiscal e apuração de impostos com foco em compliance.",
+            "modulos": [
+              { "nome": "Treinamento Completo", "descricao": "Guias de vídeo e textos para capacitação no uso das ferramentas fiscais." },
+              { "nome": "Documentos Fiscais", "descricao": "Escrituração de entradas, saídas e serviços (NF-e, NFS-e, CT-e)." },
+              { "nome": "Guias e Declarações", "descricao": "Geração automática de SPED Fiscal, EFD Contribuições e guias de recolhimento." },
+              { "nome": "Impostos Federais", "descricao": "Cálculo de IRPJ, CSLL, PIS e COFINS nos regimes Lucro Real e Presumido." }
+            ]
+          },
+          {
+            "produto": "Contábil SQL",
+            "descricao": "Gestão contábil robusta, integrando lançamentos financeiros à escrituração contábil.",
+            "modulos": [
+              { "nome": "BI Contábil", "descricao": "Business Intelligence para análise de indicadores e saúde financeira da empresa." },
+              { "nome": "Obrigações Federais", "descricao": "Preparação e validação de arquivos para ECD e ECF." },
+              { "nome": "Lotes", "descricao": "Processamento agrupado de lançamentos para agilizar o fechamento." }
+            ]
+          },
+          {
+            "produto": "Finanças SQL",
+            "descricao": "Controle completo do fluxo de caixa, tesouraria e planejamento orçamentário.",
+            "modulos": [
+              { "nome": "Títulos a Receber", "descricao": "Gestão de cobranças, baixa de títulos e controle de inadimplência." },
+              { "nome": "Fluxo de Caixa", "descricao": "Projeção de entradas e saídas para suporte à tomada de decisão financeira." },
+              { "nome": "Orçamento", "descricao": "Criação de centros de custo e monitoramento do planejado vs realizado." }
+            ]
+          },
+          {
+            "produto": "Controller",
+            "descricao": "Sistema ERP legado/estável voltado para gestão comercial e financeira integrada.",
+            "modulos": [
+              { "nome": "Cobrança Recorrente", "descricao": "Automação de faturamento para serviços de assinatura ou mensalidades." },
+              { "nome": "Ped/Orç/Prop", "descricao": "Fluxo completo de vendas desde o orçamento até a proposta comercial." }
+            ]
+          },
+          {
+            "produto": "Estoque SQL",
+            "descricao": "Controle de inventário, almoxarifado e movimentação de mercadorias.",
+            "modulos": [
+              { "nome": "Controle de Almoxarifado", "descricao": "Gerenciamento físico de itens e requisições internas de materiais." },
+              { "nome": "Composição de Itens", "descricao": "Definição de 'Kits' ou estruturas de produtos para venda e produção." }
+            ]
+          },
+          {
+            "produto": "Painel do Cliente",
+            "descricao": "Central de relacionamento entre o cliente e a Nasajon Sistemas.",
+            "modulos": [
+              { "nome": "Boletos & Faturas", "descricao": "Acesso à segunda via e histórico financeiro do contrato com a Nasajon." },
+              { "nome": "Tíquetes", "descricao": "Abertura e acompanhamento de chamados de suporte técnico." },
+              { "nome": "Base de Conhecimento", "descricao": "Repositório de artigos de ajuda para resolução de problemas comuns." }
+            ]
+          }
+        ]
+
+        if st.button("🚀 Iniciar Carga de Dados (Nasajon)"):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            total_items = len(DATA_CARGA)
+            
+            headers = {"X-Tenant-ID": tenant_id}
+            
+            for i, item in enumerate(DATA_CARGA):
+                # 1. Cria o Produto (Pai)
+                status_text.text(f"Criando Produto: {item['produto']}...")
+                payload_pai = {
+                    "type": "recurso", # Força tipo Recurso
+                    "name": item['produto'],
+                    "description": item['descricao'],
+                    "parent_id": None
+                }
+                
+                try:
+                    resp = requests.post(TAXONOMY_URL, json=payload_pai, headers=headers)
+                    if resp.status_code == 201:
+                        parent_id = resp.json().get('id')
+                        
+                        # 2. Cria os Módulos (Filhos)
+                        modulos = item.get('modulos', [])
+                        for mod in modulos:
+                            payload_filho = {
+                                "type": "recurso",
+                                "name": mod['nome'],
+                                "description": mod['descricao'],
+                                "parent_id": parent_id # Vincula ao pai criado agora
+                            }
+                            requests.post(TAXONOMY_URL, json=payload_filho, headers=headers)
+                    else:
+                        st.error(f"Erro ao criar {item['produto']}: {resp.text}")
+                        
+                except Exception as e:
+                    st.error(f"Erro de conexão: {e}")
+                
+                # Atualiza barra
+                progress_bar.progress((i + 1) / total_items)
+            
+            status_text.success("✅ Carga de Produtos e Módulos finalizada!")
+            st.rerun()
+
+    # ... (código das colunas col_tree e col_edit continua abaixo) ...
+
     with col_tree:
         st.subheader("Estrutura Atual")
         if tree_options:

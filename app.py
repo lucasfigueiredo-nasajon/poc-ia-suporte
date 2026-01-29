@@ -434,9 +434,11 @@ with tab_prompts:
 # ---------------------------------------------------------
 with tab_taxonomy:
     st.header("🗂️ Gestão de Categorias e Recursos")
-    st.info("Aqui você define a estrutura de conhecimento da IA. Use 'Recursos' para criar a hierarquia Sistema > Módulo > Funcionalidade.")
+    st.info("Defina a estrutura de conhecimento. Use 'Recursos' para hierarquia (Sistema > Módulo > Funcionalidade).")
 
-    # 1. Seletor de Tipo
+    # URL Específica desta aba (Certifique-se que BASE_URL está definido no topo do arquivo)
+    TAXONOMY_URL = f"{BASE_URL}/taxonomies/nodes"
+
     tipos_taxonomia = {
         "Recursos (Sistemas/Módulos)": "recurso",
         "Sintomas": "sintoma",
@@ -449,152 +451,157 @@ with tab_taxonomy:
     selected_label = st.selectbox("Selecione a Taxonomia:", list(tipos_taxonomia.keys()))
     selected_type = tipos_taxonomia[selected_label]
 
-    # --- FUNÇÃO HELPER PARA BUSCAR ---
+    # --- HELPER DE BUSCA ---
     def fetch_nodes(t_type):
         try:
             resp = requests.get(TAXONOMY_URL, params={"type": t_type}, headers={"X-Tenant-ID": tenant_id})
-            if resp.status_code == 200:
-                return resp.json()
-            return []
+            return resp.json() if resp.status_code == 200 else []
         except: return []
 
-    # Carrega dados
     nodes = fetch_nodes(selected_type)
-
-    # --- 2. ÁREA DE VISUALIZAÇÃO E EDIÇÃO ---
-    col_tree, col_edit = st.columns([1, 1])
-
-    # Prepara estrutura de árvore para exibição
-    node_map = {n['id']: n for n in nodes}
-    # Adiciona campo de exibição indentado
-    tree_options = [] # Lista de tuplas (id, label_indentado)
     
-    # Função recursiva para montar a lista visual
+    # --- VISUALIZAÇÃO DE ÁRVORE ---
+    node_map = {n['id']: n for n in nodes}
+    tree_options = [] 
+    
+    # Função recursiva para montar a lista visual indentada
     def build_tree_list(parent_id, level=0):
-        # Filtra filhos deste pai
         children = [n for n in nodes if n['parent_id'] == parent_id]
         for child in children:
             prefix = "└── " * level if level > 0 else "📦 "
             label = f"{prefix}{child['name']}"
             tree_options.append((child['id'], label))
-            # Recurso para o próximo nível
             build_tree_list(child['id'], level + 1)
 
-    # Inicia a construção da raiz (parent_id is None)
     build_tree_list(None)
     
-    # Se não tiver raiz (lista vazia), mas tiver orfãos (erro de dados), lista eles
-    if not tree_options and nodes:
-        for n in nodes: tree_options.append((n['id'], f"⚠️ {n['name']}"))
+    # Captura nós órfãos (caso haja erro de integridade no banco)
+    mapped_ids = {t[0] for t in tree_options}
+    for n in nodes:
+        if n['id'] not in mapped_ids:
+            tree_options.append((n['id'], f"⚠️ [Orfão] {n['name']}"))
 
-    # --- COLUNA DA ESQUERDA: LISTA/ÁRVORE ---
+    # --- DIVISÃO DA TELA ---
+    col_tree, col_edit = st.columns([1, 1])
+
     with col_tree:
         st.subheader("Estrutura Atual")
-        
-        # Selectbox que funciona como árvore
         if tree_options:
             selected_node_tuple = st.radio(
-                "Selecione um item para editar ou ver detalhes:",
+                "Navegador:",
                 options=tree_options,
-                format_func=lambda x: x[1], # Mostra o label indentado
+                format_func=lambda x: x[1],
                 label_visibility="collapsed"
             )
             selected_id = selected_node_tuple[0]
             selected_node_data = node_map.get(selected_id)
         else:
-            st.warning("Nenhum item cadastrado.")
+            st.warning("Lista vazia.")
             selected_node_data = None
             selected_id = None
 
-    # --- COLUNA DA DIREITA: EDIÇÃO / CRIAÇÃO ---
     with col_edit:
         action = st.radio("Ação:", ["Editar Selecionado", "Criar Novo Item"], horizontal=True)
         st.divider()
 
-        if action == "Criar Novo Item":
-            st.markdown(f"#### Novo Item em: {selected_label}")
-            with st.form("new_node_form"):
-                new_name = st.text_input("Nome:")
-                new_desc = st.text_area("Descrição:")
+        # FORMULÁRIO UNIFICADO
+        with st.form("taxonomy_form"):
+            
+            # --- MODO CRIAÇÃO ---
+            if action == "Criar Novo Item":
+                st.markdown(f"#### Novo em: {selected_label}")
+                form_name = st.text_input("Nome (Curto):")
+                form_desc = st.text_area("Descrição:")
                 
-                # Escolha do Pai (Hierarquia)
-                parent_options = [(None, "Nenhum (Raiz)")] + tree_options
-                new_parent = st.selectbox(
-                    "Pertence a (Pai):", 
-                    options=parent_options,
-                    format_func=lambda x: x[1]
-                )
+                # Hierarquia
+                parent_opts = [(None, "Nenhum (Raiz)")] + tree_options
+                form_parent = st.selectbox("Pai (Hierarquia):", options=parent_opts, format_func=lambda x: x[1])
                 
+                # [NOVO] METADADOS ESPECÍFICOS
+                form_meta = {}
+                if selected_type == 'causa':
+                    form_meta['responsabilidade'] = st.selectbox("Responsabilidade:", ["Suporte", "Cliente", "Desenvolvimento", "Infra"])
+                
+                if selected_type in ['sintoma', 'erro', 'solucao']:
+                    ex_text = st.text_area("Exemplos/Variações (separar por ;):", placeholder="Exemplo 1; Exemplo 2")
+                    form_meta['exemplos'] = [x.strip() for x in ex_text.split(';') if x.strip()]
+
                 submitted = st.form_submit_button("Salvar Novo")
+                
                 if submitted:
-                    if not new_name:
-                        st.error("Nome obrigatório.")
+                    if not form_name:
+                        st.error("Nome é obrigatório.")
                     else:
                         payload = {
                             "type": selected_type,
-                            "name": new_name,
-                            "description": new_desc,
-                            "parent_id": new_parent[0]
+                            "name": form_name,
+                            "description": form_desc,
+                            "parent_id": form_parent[0],
+                            "metadata": form_meta # Envia o JSON extra
                         }
                         try:
                             r = requests.post(TAXONOMY_URL, json=payload, headers={"X-Tenant-ID": tenant_id})
                             if r.status_code == 201:
-                                st.success("Criado com sucesso!")
+                                st.success("Criado!")
                                 st.rerun()
-                            else:
-                                st.error(f"Erro: {r.text}")
-                        except Exception as e:
-                            st.error(f"Erro conexão: {e}")
+                            else: st.error(r.text)
+                        except Exception as e: st.error(f"Erro: {e}")
 
-        elif action == "Editar Selecionado" and selected_node_data:
-            st.markdown(f"#### Editando: {selected_node_data['name']}")
-            with st.form("edit_node_form"):
-                edit_name = st.text_input("Nome:", value=selected_node_data['name'])
-                edit_desc = st.text_area("Descrição:", value=selected_node_data.get('description', ''))
+            # --- MODO EDIÇÃO ---
+            elif action == "Editar Selecionado" and selected_node_data:
+                st.markdown(f"#### Editando: {selected_node_data['name']}")
                 
-                # Lógica para Mover (Transferência)
-                # Remove o próprio nó e seus filhos da lista de possíveis pais para evitar ciclo
-                # (Simplificação: apenas remove o próprio nó da lista visual)
+                # Preenche com dados existentes
+                form_name = st.text_input("Nome:", value=selected_node_data['name'])
+                form_desc = st.text_area("Descrição:", value=selected_node_data.get('description', ''))
+                
+                # Lógica de Pai (Remove o próprio nó da lista para evitar ciclo)
                 valid_parents = [(None, "Nenhum (Raiz)")] + [t for t in tree_options if t[0] != selected_id]
+                curr_pid = selected_node_data['parent_id']
+                # Encontra o índice do pai atual na lista
+                def_idx = next((i for i, v in enumerate(valid_parents) if v[0] == curr_pid), 0)
                 
-                # Encontra o índice atual do pai para setar o valor default
-                current_parent_id = selected_node_data['parent_id']
-                default_idx = 0
-                for i, (pid, _) in enumerate(valid_parents):
-                    if pid == current_parent_id:
-                        default_idx = i
-                        break
+                form_parent = st.selectbox("Pai:", options=valid_parents, index=def_idx, format_func=lambda x: x[1])
                 
-                edit_parent = st.selectbox(
-                    "Mover para (Novo Pai):", 
-                    options=valid_parents,
-                    index=default_idx,
-                    format_func=lambda x: x[1]
-                )
+                # [NOVO] RECUPERAÇÃO DE METADADOS
+                curr_meta = selected_node_data.get('metadata', {}) or {}
+                form_meta = {}
                 
+                if selected_type == 'causa':
+                    opcoes_resp = ["Suporte", "Cliente", "Desenvolvimento", "Infra"]
+                    val_atual = curr_meta.get('responsabilidade', 'Suporte')
+                    idx_resp = opcoes_resp.index(val_atual) if val_atual in opcoes_resp else 0
+                    form_meta['responsabilidade'] = st.selectbox("Responsabilidade:", opcoes_resp, index=idx_resp)
+                
+                if selected_type in ['sintoma', 'erro', 'solucao']:
+                    # Converte lista de volta para string com ponto e vírgula
+                    curr_exs = "; ".join(curr_meta.get('exemplos', []))
+                    ex_text = st.text_area("Exemplos (sep. por ;):", value=curr_exs)
+                    form_meta['exemplos'] = [x.strip() for x in ex_text.split(';') if x.strip()]
+                
+                # Botões lado a lado
                 c1, c2 = st.columns(2)
-                with c1:
-                    if st.form_submit_button("💾 Salvar Alterações", type="primary"):
-                        payload = {
-                            "name": edit_name,
-                            "description": edit_desc,
-                            "parent_id": edit_parent[0]
-                        }
+                if c1.form_submit_button("💾 Atualizar"):
+                    payload = {
+                        "name": form_name, "description": form_desc, 
+                        "parent_id": form_parent[0], "metadata": form_meta
+                    }
+                    try:
                         r = requests.put(f"{TAXONOMY_URL}/{selected_id}", json=payload, headers={"X-Tenant-ID": tenant_id})
                         if r.status_code == 200:
                             st.success("Atualizado!")
                             st.rerun()
-                        else:
-                            st.error(f"Erro: {r.text}")
+                        else: st.error(f"Erro: {r.text}")
+                    except Exception as e: st.error(e)
                 
-                with c2:
-                    if st.form_submit_button("🗑️ Excluir Item", type="secondary"):
+                if c2.form_submit_button("🗑️ Deletar", type="secondary"):
+                    try:
                         r = requests.delete(f"{TAXONOMY_URL}/{selected_id}", headers={"X-Tenant-ID": tenant_id})
                         if r.status_code == 200:
-                            st.success("Excluído!")
+                            st.success("Deletado!")
                             st.rerun()
-                        else:
-                            st.error(f"Erro: {r.text}")
-        
-        elif action == "Editar Selecionado" and not selected_node_data:
-            st.info("Selecione um item na lista à esquerda para editar.")
+                        else: st.error(f"Erro: {r.text}")
+                    except Exception as e: st.error(e)
+
+            else:
+                st.info("Selecione um item à esquerda para editar.")

@@ -483,12 +483,15 @@ with tab_taxonomy:
 
     # ... (Lógica das colunas será renderizada abaixo da área de importação para facilitar acesso) ...
 
+# ... (código anterior mantido) ...
+
     # --- ÁREA DE IMPORTAÇÃO EM LOTE ---
     with st.expander("📦 Importação em Lote (Carga Inicial)", expanded=False):
         
-        # 1. DADOS DE RECURSOS (SEUS DADOS ORIGINAIS)
+        # 1. DADOS DE RECURSOS (MANTIDO)
         DATA_RECURSOS = [
-          {
+            # ... (seus dados de recursos anteriores) ...
+             {
             "produto": "Reforma Tributária",
             "descricao": "Soluções e atualizações dedicadas à transição e conformidade com as novas normas tributárias brasileiras.",
             "modulos": [
@@ -603,7 +606,7 @@ with tab_taxonomy:
           }
         ]
 
-        # 2. DADOS DE CAUSAS
+        # 2. DADOS DE CAUSAS (MANTIDO)
         DATA_CAUSAS = [
             {"nome": "Erro Operacional / Parametrização", "descricao": "O software funcionou conforme projetado, mas os dados inseridos, parâmetros ou processos executados pelo usuário estavam incorretos."},
             {"nome": "Defeito de Software / Bug", "descricao": "Falhas no código, erros de lógica, crashes, problemas visuais ou comportamentos inesperados do sistema."},
@@ -616,7 +619,7 @@ with tab_taxonomy:
             {"nome": "Outro", "descricao": "Causas que não se enquadram em nenhuma das categorias acima ou não puderam ser identificadas."}
         ]
 
-        # 3. DADOS DE SINTOMAS
+        # 3. DADOS DE SINTOMAS (MANTIDO)
         DATA_SINTOMAS = [
             {"nome": "Erro de Transmissão (Governo)", "descricao": "Falhas na comunicação com eSocial, REINF ou DCTFWeb. Geralmente retornam códigos de erro ou XML inválido."},
             {"nome": "Erro de Cálculo / Divergência de Valor", "descricao": "O sistema funciona, mas o valor matemático final (imposto, salário, férias) não bate com o esperado pelo cliente."},
@@ -632,7 +635,7 @@ with tab_taxonomy:
             {"nome": "Outro", "descricao": "Sintomas que não se enquadram em nenhuma das categorias acima."}
         ]
 
-        # 4. DADOS DE SOLUÇÕES
+        # 4. DADOS DE SOLUÇÕES (MANTIDO)
         DATA_SOLUCOES = [
             {"nome": "Orientação e Educação (Procedimental)", "descricao": "O analista explicou como o sistema funciona ou indicou o caminho do menu. Nenhuma alteração técnica foi feita pelo analista, apenas instrução."},
             {"nome": "Correção de Dados / Saneamento", "descricao": "Ação focada em corrigir registros específicos que estavam errados, duplicados ou travados (muito comum no eSocial)."},
@@ -643,11 +646,38 @@ with tab_taxonomy:
             {"nome": "Outro", "descricao": "Soluções que não se enquadram em nenhuma das categorias acima ou não houve solução clara."}
         ]
 
+        # 5. DADOS DE ERROS (NOVO)
+        DATA_ERROS = [
+            {"codigo": "17", "descricao": "Erro na estrutura do arquivo XML. Geralmente ocorre por campos obrigatórios em branco ou caracteres inválidos em cadastros (ex: CPF, CRM ou CNAE)."},
+            {"codigo": "105", "descricao": "O evento a ser excluído ou retificado não foi localizado na base de dados do eSocial. Ocorre quando o sistema tenta alterar algo que ainda não foi aceito pelo governo."},
+            {"codigo": "106", "descricao": "Evento em duplicidade. Já existe um evento processado no eSocial com os mesmos dados (período, CPF, matrícula) e número de recibo diferente."},
+            {"codigo": "261", "descricao": "Inconsistência na validade da Lotação Tributária. A data de início da lotação no S-1020 deve ser igual ou anterior ao período da remuneração (S-1200)."},
+            {"codigo": "262", "descricao": "Lotação não existe no cadastro do empregador para o período. O código de lotação usado na folha não foi enviado ou aceito previamente no evento S-1020."},
+            {"codigo": "269", "descricao": "Não permitida a exclusão/retificação de evento de tabela com períodos de validade conflitantes ou eventos dependentes já processados."},
+            {"codigo": "312", "descricao": "Erro na remuneração do trabalhador. A somatória dos proventos e descontos deve ser coerente com a categoria do trabalhador e o teto previdenciário."},
+            {"codigo": "536", "descricao": "Informações de Empregador, trabalhador e/ou período não localizadas. Comum em tentativas de fechamento (S-1299) sem remunerações enviadas."},
+            {"codigo": "537", "descricao": "Já existe no sistema registro com o mesmo código de identificação. Ocorre em eventos de tabela (Rubricas, Lotações) já cadastrados no portal."},
+            {"codigo": "553", "descricao": "Trabalhador sem evento de admissão (S-2200/S-2300) aceito no eSocial para o período da remuneração."},
+            {"codigo": "588", "descricao": "Erro no fechamento (S-1299). O indicativo de existência de remuneração deve ser 'Sim' quando houver eventos S-1200/S-1210 aceitos."},
+            {"codigo": "589", "descricao": "Erro no fechamento (S-1299). O indicativo de pagamento deve ser 'Sim' se houver eventos de pagamento (S-1210) no período."},
+            {"codigo": "632", "descricao": "Já existe no evento um grupo com mesma chave de identificação. Indica duplicidade de rubricas ou múltiplas fontes pagadoras enviadas incorretamente."},
+            {"codigo": "1352", "descricao": "Código de incidência tributária da rubrica para o IRRF inválido ou incompatível com a natureza da rubrica no evento S-1010."},
+            {"codigo": "1505", "descricao": "Evento inválido. A inclusão de novo período de validade de uma rubrica vigente não pode ter atributos idênticos ao período atual."},
+            {"codigo": "1728", "descricao": "Classificação Tributária não permitida. A classificação informada no S-1000 impede o uso de determinadas lotações ou tipos de empresa (ex: MEI)."},
+            {"codigo": "1988", "descricao": "Erro na remuneração. O somatório das rubricas deve ser maior que zero (salvo casos específicos de suspensão de contrato)."},
+            {"codigo": "Access violation", "descricao": "Erro crítico de memória no executável Persona SQL. Geralmente resolvido com atualização do sistema ou permissões de pasta no servidor."},
+            {"codigo": "S2PER060-eConsignado", "descricao": "Validação interna Nasajon: Inconsistência nos dados de empréstimo consignado importados ou calculados na folha para envio ao eSocial."},
+            {"codigo": "S2PER063", "descricao": "Inconsistência detectada pelo motor de regras Nasajon ao gerar o evento de pagamento S-1210 (conferência de bases)."},
+            {"codigo": "S2PER100", "descricao": "Erro na validação prévia de admissão. Dados obrigatórios do trabalhador ausentes antes da geração do XML S-2200."},
+            {"codigo": "Violação de PK", "descricao": "Erro de banco de dados (Primary Key). Tentativa de inserir um registro (como uma rubrica ou funcionário) que já possui o mesmo identificador único no SQL."}
+        ]
+
         st.warning("⚠️ Atenção: A carga pode gerar duplicidade se os itens já existirem.")
         if st.button("🗑️ LIMPAR TODAS AS TAXONOMIAS (Zerar Banco)", type="primary"):
             st.error("Por segurança, a limpeza total deve ser feita no banco de dados com o comando: TRUNCATE TABLE taxonomy_nodes RESTART IDENTITY CASCADE;")
 
-        c1, c2, c3, c4 = st.columns(4)
+        # AUMENTADO PARA 5 COLUNAS PARA CABER OS ERROS
+        c1, c2, c3, c4, c5 = st.columns(5)
         
         headers = {"X-Tenant-ID": tenant_id}
 
@@ -658,13 +688,11 @@ with tab_taxonomy:
             for i, item in enumerate(DATA_RECURSOS):
                 txt.text(f"Criando Produto: {item['produto']}...")
                 try:
-                    # Cria Pai
                     resp = requests.post(TAXONOMY_URL, json={
                         "type": "recurso", "name": item['produto'], "description": item['descricao'], "parent_id": None
                     }, headers=headers)
                     if resp.status_code == 201:
                         parent_id = resp.json().get('id')
-                        # Cria Filhos
                         for mod in item.get('modulos', []):
                             requests.post(TAXONOMY_URL, json={
                                 "type": "recurso", "name": mod['nome'], "description": mod['descricao'], "parent_id": parent_id
@@ -713,6 +741,21 @@ with tab_taxonomy:
             txt.success("Soluções importadas!")
             st.rerun()
 
+        # --- BOTÃO 5: ERROS (NOVO) ---
+        if c5.button("🚀 Carga: Erros"):
+            bar = st.progress(0); txt = st.empty()
+            total = len(DATA_ERROS)
+            for i, item in enumerate(DATA_ERROS):
+                txt.text(f"Criando Erro: {item['codigo']}...")
+                # Mapeamento: codigo -> name, descricao -> description
+                requests.post(TAXONOMY_URL, json={
+                    "type": "erro", "name": item['codigo'], "description": item['descricao'], "parent_id": None
+                }, headers=headers)
+                bar.progress((i+1)/total)
+            txt.success("Erros importados!")
+            st.rerun()
+
+    
     # --- FIM DA ÁREA DE IMPORTAÇÃO ---
 
     with col_tree:

@@ -490,7 +490,7 @@ with tab_taxonomy:
     with st.expander("📦 Importação em Lote (Carga Inicial Nasajon)"):
         st.warning("Esta ação irá cadastrar produtos e módulos automaticamente na taxonomia de 'Recursos'.")
         
-        # O JSON que você forneceu
+        # O JSON
         DATA_CARGA = [
           {
             "produto": "Reforma Tributária",
@@ -607,54 +607,54 @@ with tab_taxonomy:
           }
         ]
 
-        if st.button("🗑️ LIMPAR TODAS AS TAXONOMIAS (Zerar Banco)", type="primary"):
+        #if st.button("🗑️ LIMPAR TODAS AS TAXONOMIAS (Zerar Banco)", type="primary"):
             # Precisaríamos de uma rota de 'delete all' ou iterar deletando
             # Como não criamos rota de 'truncate', vamos avisar para usar SQL
-            st.error("Por segurança, a limpeza total deve ser feita no banco de dados com o comando: TRUNCATE TABLE taxonomy_nodes RESTART IDENTITY CASCADE;")
+         #   st.error("Por segurança, a limpeza total deve ser feita no banco de dados com o comando: TRUNCATE TABLE taxonomy_nodes RESTART IDENTITY CASCADE;")
 
-        if st.button("🚀 Iniciar Carga de Dados (Nasajon)"):
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            total_items = len(DATA_CARGA)
-            
-            headers = {"X-Tenant-ID": tenant_id}
-            
-            for i, item in enumerate(DATA_CARGA):
-                # 1. Cria o Produto (Pai)
-                status_text.text(f"Criando Produto: {item['produto']}...")
-                payload_pai = {
-                    "type": "recurso", # Força tipo Recurso
-                    "name": item['produto'],
-                    "description": item['descricao'],
-                    "parent_id": None
-                }
-                
-                try:
-                    resp = requests.post(TAXONOMY_URL, json=payload_pai, headers=headers)
-                    if resp.status_code == 201:
-                        parent_id = resp.json().get('id')
-                        
-                        # 2. Cria os Módulos (Filhos)
-                        modulos = item.get('modulos', [])
-                        for mod in modulos:
-                            payload_filho = {
-                                "type": "recurso",
-                                "name": mod['nome'],
-                                "description": mod['descricao'],
-                                "parent_id": parent_id # Vincula ao pai criado agora
-                            }
-                            requests.post(TAXONOMY_URL, json=payload_filho, headers=headers)
-                    else:
-                        st.error(f"Erro ao criar {item['produto']}: {resp.text}")
-                        
-                except Exception as e:
-                    st.error(f"Erro de conexão: {e}")
-                
-                # Atualiza barra
-                progress_bar.progress((i + 1) / total_items)
-            
-            status_text.success("✅ Carga de Produtos e Módulos finalizada!")
-            st.rerun()
+        #if st.button("🚀 Iniciar Carga de Dados (Nasajon)"):
+        #    progress_bar = st.progress(0)
+        #    status_text = st.empty()
+        #    total_items = len(DATA_CARGA)
+        #    
+        #    headers = {"X-Tenant-ID": tenant_id}
+        #    
+        #    for i, item in enumerate(DATA_CARGA):
+        #        # 1. Cria o Produto (Pai)
+        #        status_text.text(f"Criando Produto: {item['produto']}...")
+        #        payload_pai = {
+        #            "type": "recurso", # Força tipo Recurso
+        #            "name": item['produto'],
+        #            "description": item['descricao'],
+        #            "parent_id": None
+        #        }
+        #        
+        #        try:
+        #            resp = requests.post(TAXONOMY_URL, json=payload_pai, headers=headers)
+        #            if resp.status_code == 201:
+        #                parent_id = resp.json().get('id')
+        #                
+        #                # 2. Cria os Módulos (Filhos)
+        #                modulos = item.get('modulos', [])
+        #                for mod in modulos:
+        #                    payload_filho = {
+        #                        "type": "recurso",
+        #                        "name": mod['nome'],
+        #                        "description": mod['descricao'],
+        #                        "parent_id": parent_id # Vincula ao pai criado agora
+        #                    }
+        #                    requests.post(TAXONOMY_URL, json=payload_filho, headers=headers)
+        #            else:
+        #                st.error(f"Erro ao criar {item['produto']}: {resp.text}")
+        #                
+        #        except Exception as e:
+        #            st.error(f"Erro de conexão: {e}")
+        #        
+        #        # Atualiza barra
+        #        progress_bar.progress((i + 1) / total_items)
+        #    
+        #    status_text.success("✅ Carga de Produtos e Módulos finalizada!")
+        #    st.rerun()
 
     # ... (código das colunas col_tree e col_edit continua abaixo) ...
 

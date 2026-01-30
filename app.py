@@ -691,21 +691,6 @@ with tab_taxonomy:
 #=========================================================
 # ABA 5: GESTÃO DE TICKETS (NEO4J)
 # =========================================================
-Com certeza! Vamos adicionar a seção "Detalhes do Ticket" logo após o drill-down de categorias.
-
-Essa seção funcionará como uma "Ficha Técnica", permitindo que você digite um ID (ex: T005) e veja todas as etiquetas que a IA atribuiu àquele ticket específico.
-
-Aqui está o código completo e atualizado para a Aba 5. Ele inclui:
-
-    Altair para o gráfico horizontal (melhor leitura).
-
-    Dados Mockados atualizados com a estrutura do Persona.
-
-    Nova Seção: Busca e visualização detalhada de ticket por ID.
-
-Substitua todo o bloco with tab_tickets: por este:
-Python
-
 import altair as alt # Certifique-se de ter importado isso no topo do arquivo
 import random
 

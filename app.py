@@ -50,83 +50,92 @@ tab_chat, tab_admin, tab_prompts, tab_taxonomy, tab_tickets = st.tabs([
 # ---------------------------------------------------------
 # ABA 1: CHAT DE SUPORTE
 # ---------------------------------------------------------
+# ---------------------------------------------------------
+# ABA 1: CHAT DE SUPORTE (VERSÃO FINAL VALIDADA)
+# ---------------------------------------------------------
 with tab_chat:
-    # Botão de Limpeza
-    col_btn, _ = st.columns([2, 8])
-    with col_btn:
-        if st.button("🗑️ Limpar Conversa / Reiniciar", type="secondary"):
-            st.session_state.messages = []
-            st.session_state.conversation_id = str(uuid.uuid4())
-            st.rerun()
-    
-    st.divider()
+    # 1. Container para manter o histórico fixo no topo
+    chat_container = st.container()
 
-    # Histórico de Mensagens
-    if not st.session_state.messages:
-        st.info("👋 Olá! O assistente virtual está pronto. Digite sua dúvida abaixo.")
-    
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    # 2. Input fixo na parte inferior
+    prompt = st.chat_input("Olá! Em que posso ajudar?")
 
-    # Input do Chat
-    if prompt := st.chat_input("Descreva seu problema ou dúvida..."):
-        # 1. Adiciona msg do usuário ao histórico visual
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        
-        # 2. Chama a API do Backend
-        with st.chat_message("assistant"):
-            message_placeholder = st.empty()
-            full_response = ""
-            
-            with st.spinner("🧠 Analisando base de conhecimento..."):
+    # 3. Renderiza o histórico DENTRO do container
+    with chat_container:
+        def get_avatar(role, metadata=None):
+            if role == "user": return "👤"
+            if metadata:
+                agent = metadata.get("agent", "")
+                if "receptionist" in agent: return "💁‍♀️" # Recepcionista
+                if "specialist" in agent: return "👷‍♂️" # Especialista
+                if "ticket" in agent: return "🎫"      # Criador de Ticket
+            return "🤖" # Padrão
+
+        for message in st.session_state.messages:
+            avatar = get_avatar(message["role"], message.get("debug"))
+            with st.chat_message(message["role"], avatar=avatar):
+                st.markdown(message["content"])
+                if "debug" in message:
+                    with st.expander("ℹ️ Bastidores"):
+                        st.json(message["debug"])
+
+    # 4. Processamento da nova mensagem
+    if prompt:
+        # Adiciona visualmente no container
+        with chat_container:
+            st.chat_message("user", avatar="👤").markdown(prompt)
+            st.session_state.messages.append({"role": "user", "content": prompt})
+
+            with st.chat_message("assistant", avatar="🤖"):
+                message_placeholder = st.empty()
+                message_placeholder.markdown("🧠 *Analisando solicitação...*")
+                
                 try:
-                    # Payload para o Orchestrator
+                    # Prepara histórico para envio
+                    historico_para_enviar = []
+                    for msg in st.session_state.messages[:-1]:
+                        msg_payload = {"role": msg["role"], "content": msg["content"]}
+                        if "agent" in msg: msg_payload["agent"] = msg["agent"]
+                        historico_para_enviar.append(msg_payload)
+
                     payload = {
-                        "user_id": "streamlit_user", 
                         "conversation_id": st.session_state.conversation_id,
-                        "message": prompt
+                        "message": prompt,
+                        "history": historico_para_enviar,
+                        "context": {"sistema": sistema}
                     }
                     
-                    headers = {
-                        "X-Tenant-ID": tenant_id,
-                        "Content-Type": "application/json"
-                    }
+                    headers = {"Content-Type": "application/json", "X-Tenant-ID": tenant_id}
                     
-                    # Chamada POST para a API
+                    # Chama a API
                     response = requests.post(CHAT_URL, json=payload, headers=headers, timeout=60)
                     
                     if response.status_code == 200:
                         data = response.json()
                         
-                        # --- LINHA DE DEBUG (Adicione isso temporariamente) ---
-                        with st.chat_message("assistant"):
-                            st.warning("🔍 DEBUG DO JSON RECEBIDO:")
-                            st.json(data)
-                        # -----------------------------------------------------
-    
-                        # Tenta pegar a resposta em várias chaves possíveis
-                        bot_response = data.get("response") or data.get("answer") or data.get("message") or data.get("result")
-                        
-                        if not bot_response:
-                            bot_response = "⚠️ O backend respondeu, mas sem conteúdo de texto."
-    
+                        # ✅ CORREÇÃO: Usa a chave 'response' confirmada no seu JSON
+                        bot_response = data.get("response", "⚠️ Resposta vazia.")
                         metadata = data.get("metadata", {})
                         
                         message_placeholder.markdown(bot_response)
                         
-                        # Salva resposta no histórico
-                        st.session_state.messages.append({"role": "assistant", "content": full_response})
-                    else:
-                        error_msg = f"❌ Erro {response.status_code}: {response.text}"
-                        message_placeholder.error(error_msg)
+                        # ✅ SALVAMENTO COMPLETO: Inclui 'debug' e 'agent' para os ícones funcionarem
+                        st.session_state.messages.append({
+                            "role": "assistant", 
+                            "content": bot_response,
+                            "debug": metadata,       # Guarda o tier/agent
+                            "agent": metadata.get("agent") # Facilita o get_avatar
+                        })
                         
+                        # Força atualização para garantir icones certos na proxima renderização
+                        st.rerun() 
+                    else:
+                        message_placeholder.error(f"❌ Erro {response.status_code}: {response.text}")
+                
                 except requests.exceptions.ConnectionError:
-                    message_placeholder.error("🚨 Não foi possível conectar ao servidor. Verifique se o Backend está rodando.")
+                    message_placeholder.error(f"🔌 Não foi possível conectar em: {CHAT_URL}")
                 except Exception as e:
-                    message_placeholder.error(f"🚨 Erro inesperado: {str(e)}")
+                    message_placeholder.error(f"🔌 Erro: {str(e)}")
 # ---------------------------------------------------------
 # ABA 2: INGESTÃO E VISUALIZAÇÃO (VERSÃO FINAL)
 # ---------------------------------------------------------

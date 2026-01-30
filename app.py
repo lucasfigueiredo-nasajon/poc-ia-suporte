@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import uuid
 import json
+import pandas as pd
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(

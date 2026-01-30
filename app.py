@@ -50,19 +50,6 @@ tab_chat, tab_admin, tab_prompts, tab_taxonomy, tab_tickets = st.tabs([
 # ---------------------------------------------------------
 # ABA 1: CHAT DE SUPORTE
 # ---------------------------------------------------------
-# --- CONSTANTES & DEFAULTS ---
-BASE_URL = "https://api.nasajon.app/nsj-ia-suporte"
-# BASE_URL = "http://localhost:5000/nsj-ia-suporte" # Dev Local
-
-INGEST_URL = f"{BASE_URL}/ingest-pipeline"
-PROMPTS_URL = f"{BASE_URL}/prompts"
-QUERY_URL = f"{BASE_URL}/query" # <--- ADICIONE ESSA CONSTANTE
-
-# ... (Resto das configurações iniciais mantém igual) ...
-
-# ---------------------------------------------------------
-# ABA 1: CHAT DE SUPORTE
-# ---------------------------------------------------------
 with tab_chat:
     # Botão de Limpeza
     col_btn, _ = st.columns([2, 8])
@@ -109,7 +96,7 @@ with tab_chat:
                     }
                     
                     # Chamada POST para a API
-                    response = requests.post(QUERY_URL, json=payload, headers=headers, timeout=60)
+                    response = requests.post(CHAT_URL, json=payload, headers=headers, timeout=60)
                     
                     if response.status_code == 200:
                         data = response.json()
@@ -396,7 +383,7 @@ with tab_prompts:
     st.header("📝 Editor de Prompts do Sistema")
     st.info("Gerencie os System Prompts, Agentes e Tools armazenados no banco.")
 
-    API_URL = "https://api.nasajon.app/nsj-ia-suporte/prompts" 
+    API_URL = PROMPTS_URL
     
     # Mapeamento do Sistema
     # Mapeamento do Sistema
@@ -533,10 +520,6 @@ with tab_taxonomy:
     col_tree, col_edit = st.columns([1, 1])
 
     # ... (Lógica das colunas será renderizada abaixo da área de importação para facilitar acesso) ...
-
-# ... (código anterior mantido) ...
-
-    # ... (código anterior da aba taxonomy) ...
 
     # --- ÁREA DE IMPORTAÇÃO EM LOTE ---
     

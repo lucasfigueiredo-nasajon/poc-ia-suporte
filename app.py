@@ -10,13 +10,16 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CONSTANTES & DEFAULTS ---
+# --- CONSTANTES GLOBAIS ---
 BASE_URL = "https://api.nasajon.app/nsj-ia-suporte"
-STATS_URL = f"{BASE_URL}/stats"
-# BASE_URL = "http://localhost:5000/nsj-ia-suporte" # Dev Local
+# BASE_URL = "http://localhost:5000/nsj-ia-suporte" # Para teste local
 
+# Rotas do Sistema
+STATS_URL = f"{BASE_URL}/stats" # <--- CORREÇÃO APLICADA
+CHAT_URL = f"{BASE_URL}/queries"
 INGEST_URL = f"{BASE_URL}/ingest-pipeline"
 PROMPTS_URL = f"{BASE_URL}/prompts"
+TAXONOMY_URL = f"{BASE_URL}/taxonomies/nodes"
 
 # Define o Tenant ID fixo (já que removemos a seleção da sidebar)
 tenant_id = "1" 

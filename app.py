@@ -688,21 +688,44 @@ with tab_taxonomy:
 #=========================================================
 # ABA 5: GESTÃO DE TICKETS (NEO4J)
 # =========================================================
+Perfeito. Vamos transformar a Aba 5 em um painel de diagnóstico.
+
+Muitas vezes o botão "funciona", mas a API retorna um erro silencioso (404 ou 500) ou uma lista vazia [], e como não estamos tratando o else visualmente, parece que nada acontece.
+
+Substitua apenas o bloco with tab_tickets: no seu dev/app_streamlit.py por este código abaixo. Ele tem um "Modo Espião" que vai mostrar exatamente o que está indo e o que está voltando.
+Python
+
+# =========================================================
+# ABA 5: GESTÃO DE TICKETS (COM LOGS DE DEBUG)
+# =========================================================
 with tab_tickets:
     st.header("📊 Análise do Knowledge Graph (Neo4j)")
     st.info("Visualização em tempo real dos tickets processados e armazenados no grafo.")
 
     col_kpi1, col_kpi2, col_refresh = st.columns([2, 2, 1])
     
-    # Botão de Atualizar
     if col_refresh.button("🔄 Atualizar Dados"):
         st.rerun()
 
-    # --- 1. BUSCA DADOS DE CLASSIFICAÇÃO (UTIL / INUTIL) ---
+    # --- ÁREA DE DEBUG (Visível para entendermos o erro) ---
+    with st.expander("🕵️ Logs de Conexão (Debug)", expanded=True):
+        st.write(f"**URL Base:** `{STATS_URL}`")
+        st.write(f"**Tenant ID:** `{tenant_id}`")
+
+    # --- 1. BUSCA DADOS DE CLASSIFICAÇÃO ---
     try:
-        resp_class = requests.get(f"{STATS_URL}/tickets/classification", headers={"X-Tenant-ID": tenant_id})
-        if resp_class.status_code == 200:
+        url_class = f"{STATS_URL}/tickets/classification"
+        # st.write(f"Tentando conectar em: {url_class}...") # Log visual
+        
+        resp_class = requests.get(url_class, headers={"X-Tenant-ID": tenant_id})
+        
+        # LOG DO STATUS
+        if resp_class.status_code != 200:
+            st.error(f"🚨 Erro na API Classificação: {resp_class.status_code}")
+            st.code(resp_class.text) # Mostra o erro cru do Flask
+        else:
             data_class = resp_class.json()
+            # st.success(f"✅ Classificação carregada: {len(data_class)} registros") # Log sucesso
             
             # KPI: Total de Tickets
             total_tickets = sum([item['value'] for item in data_class])
@@ -715,7 +738,6 @@ with tab_tickets:
 
             st.divider()
 
-            # GRÁFICO 1: Distribuição de Utilidade
             c_chart1, c_chart2 = st.columns(2)
             with c_chart1:
                 st.subheader("Classificação (IA)")
@@ -723,30 +745,33 @@ with tab_tickets:
                     df_class = pd.DataFrame(data_class)
                     st.bar_chart(df_class.set_index("label"))
                 else:
-                    st.warning("Sem dados de classificação.")
+                    st.warning("⚠️ A API respondeu 200, mas a lista veio vazia `[]`.")
 
     except Exception as e:
-        st.error(f"Erro ao conectar com Neo4j Stats: {e}")
+        st.error(f"🔥 Exceção ao conectar (Classificação): {e}")
 
-    # --- 2. BUSCA DADOS DE SINTOMAS MAIS COMUNS ---
+    # --- 2. BUSCA DADOS DE SINTOMAS ---
     try:
-        resp_sint = requests.get(f"{STATS_URL}/tickets/sintomas", headers={"X-Tenant-ID": tenant_id})
-        if resp_sint.status_code == 200:
+        url_sint = f"{STATS_URL}/tickets/sintomas"
+        resp_sint = requests.get(url_sint, headers={"X-Tenant-ID": tenant_id})
+        
+        if resp_sint.status_code != 200:
+            st.error(f"🚨 Erro na API Sintomas: {resp_sint.status_code}")
+            st.code(resp_sint.text)
+        else:
             data_sint = resp_sint.json()
             
             with c_chart2:
                 st.subheader("Top Sintomas Recorrentes")
                 if data_sint:
                     df_sint = pd.DataFrame(data_sint)
-                    # Gráfico de barras horizontal para sintomas (melhor leitura)
                     st.bar_chart(df_sint.set_index("label"), horizontal=True)
                 else:
-                    st.warning("Sem dados de sintomas.")
+                    st.warning("⚠️ A API respondeu 200, mas sem sintomas.")
                     
-            # Tabela Detalhada
             with st.expander("📋 Ver Tabela de Sintomas Completa"):
                 if data_sint:
                     st.dataframe(pd.DataFrame(data_sint), use_container_width=True)
                     
     except Exception as e:
-        st.error(f"Erro ao buscar sintomas: {e}")
+        st.error(f"🔥 Exceção ao buscar sintomas: {e}")

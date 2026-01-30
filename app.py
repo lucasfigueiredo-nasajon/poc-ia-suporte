@@ -3,6 +3,7 @@ import requests
 import uuid
 import json
 import pandas as pd
+import random
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -689,83 +690,199 @@ with tab_taxonomy:
 #=========================================================
 # ABA 5: GESTÃO DE TICKETS (NEO4J)
 # =========================================================
+import random # Necessário para gerar dados aleatórios
+
 # =========================================================
-# ABA 5: GESTÃO DE TICKETS (COM LOGS DE DEBUG)
+# ABA 5: GESTÃO DE TICKETS (MOCK AVANÇADO - PERSONA SQL)
 # =========================================================
 with tab_tickets:
-    st.header("📊 Análise do Knowledge Graph (Neo4j)")
-    st.info("Visualização em tempo real dos tickets processados e armazenados no grafo.")
+    st.header("📊 Análise de Tickets (Protótipo Visual)")
+    st.info("Visualização baseada em dados mockados do Persona SQL para validação de layout.")
 
-    col_kpi1, col_kpi2, col_refresh = st.columns([2, 2, 1])
+    # --- 1. CONFIGURAÇÃO DAS TAXONOMIAS (LISTAS DO USUÁRIO) ---
+    TAXONOMIA_PERSONA = {
+        "Arquivos Oficiais": ["Geral"],
+        "Cadastros e Configurações": ["Geral"],
+        "Cálculos e Rotinas": ["Folha", "Férias", "Rescisão", "13º Salário"],
+        "eSocial": [
+            "DCTFWeb", "Eventos Iniciais", "Eventos Não Periódicos", 
+            "Eventos Periódicos", "FGTS Digital", "Outro", "Painel eSocial", "SST"
+        ]
+    }
+
+    CATEGORIAS_SINTOMA = [
+        "Bug de Funcionalidade / Erro de Tela", "Dúvida de Cadastro / Configuração",
+        "Dúvida de Processo / \"Como Fazer\"", "Dúvida sobre Relatório / Visualização",
+        "Erro de Cálculo / Divergência de Valor", "Erro de Transmissão (Governo)",
+        "Indisponibilidade / Falha de Acesso", "Interesse Comercial / Aquisição",
+        "Outro", "Risco de Churn / Insatisfação", "Solicitação Administrativa (Financeiro)",
+        "Solicitação de Serviço Interno / Infra"
+    ]
+
+    CATEGORIAS_CAUSA = [
+        "Defeito de Software / Bug", "Dúvida / Negócio (Não Técnico)",
+        "Erro Operacional / Parametrização", "Falha de Ambiente / Infraestrutura",
+        "Fator Externo / Terceiros", "Gestão de Acesso / Identidade",
+        "Inconsistência de Dados / Banco", "Limitação do Sistema / By Design", "Outro"
+    ]
+
+    CATEGORIAS_SOLUCAO = [
+        "Configuração e Parametrização", "Correção de Dados / Saneamento",
+        "Escalonamento / Correção de Bug", "Intervenção Técnica / Infraestrutura",
+        "Orientação e Educação (Procedimental)", "Outro", "Serviço Administrativo / Comercial"
+    ]
+
+    EVENTOS_ESOCIAL = [
+        "S-1000", "S-1005", "S-1010", "S-1020", "S-1070", # Tabela
+        "S-2190", "S-2200", "S-2205", "S-2206", "S-2299", "S-2300", # Não Periódicos (Alguns)
+        "S-1200", "S-1210", "S-1299" # Periódicos
+    ]
+
+    CODIGOS_ERRO = [
+        "105", "106", "17", "1728", "1988", "261", "262", "312", 
+        "536", "537", "553", "588", "Access violation", "S2PER100", "Violação de PK"
+    ]
+
+    # --- 2. GERADOR DE DADOS MOCKADOS ---
+    @st.cache_data
+    def load_mock_data(qtd=50):
+        data = []
+        for i in range(1, qtd + 1):
+            # Hierarquia de Recurso
+            nivel_2 = random.choice(list(TAXONOMIA_PERSONA.keys()))
+            nivel_3 = random.choice(TAXONOMIA_PERSONA[nivel_2])
+            
+            # Sintoma
+            cat_sintoma = random.choice(CATEGORIAS_SINTOMA)
+            
+            # Lógica para Eventos e Erros (Só preenche se fizer sentido)
+            evento = None
+            erro = None
+            detalhe_extra = ""
+
+            if nivel_2 == "eSocial":
+                evento = random.choice(EVENTOS_ESOCIAL)
+                if cat_sintoma == "Erro de Transmissão (Governo)":
+                    erro = random.choice(CODIGOS_ERRO)
+                    detalhe_extra = f"retornando erro {erro}."
+                else:
+                    detalhe_extra = "com status aguardando retorno."
+            
+            elif cat_sintoma == "Erro de Cálculo / Divergência de Valor":
+                 detalhe_extra = "com diferença de centavos no líquido."
+            
+            elif cat_sintoma == "Bug de Funcionalidade / Erro de Tela":
+                 erro = random.choice(["Access violation", "Violação de PK", "S2PER063"]) if random.random() > 0.5 else None
+                 detalhe_extra = f"apresentando mensagem {erro} ao salvar." if erro else "travando a tela."
+
+            # Detalhe do Sintoma (Texto Único)
+            descricoes = [
+                f"Cliente relata problema no {nivel_3} {detalhe_extra}",
+                f"Dificuldade em processar {nivel_3}, sistema {detalhe_extra}",
+                f"Ao tentar gerar {nivel_2} > {nivel_3}, ocorre inconsistência {detalhe_extra}",
+                f"Dúvida sobre como configurar {nivel_3} para evitar {cat_sintoma}."
+            ]
+            detalhe_sintoma = random.choice(descricoes)
+
+            # Causa e Solução
+            cat_causa = random.choice(CATEGORIAS_CAUSA)
+            cat_solucao = random.choice(CATEGORIAS_SOLUCAO)
+
+            ticket = {
+                "id": f"T{i:03d}",
+                "recurso_nivel_1": "Persona SQL",
+                "recurso_nivel_2": nivel_2,
+                "recurso_nivel_3": nivel_3,
+                "sintoma_categoria": cat_sintoma,
+                "sintoma_detalhe": detalhe_sintoma,
+                "causa_categoria": cat_causa,
+                "solucao_categoria": cat_solucao,
+                "evento_esocial": evento if evento else "-",
+                "codigo_erro": erro if erro else "-"
+            }
+            data.append(ticket)
+        
+        return pd.DataFrame(data)
+
+    df_tickets = load_mock_data(qtd=60) # Gera 60 tickets para popular bem
+
+    # --- 3. CONTROLES DE FILTRO ---
+    st.markdown("### 🔍 Visão Geral")
     
-    if col_refresh.button("🔄 Atualizar Dados"):
-        st.rerun()
+    # Mapeamento: Nome Amigável -> Coluna do DataFrame
+    opcoes_visao = {
+        "Por Causa Raiz": "causa_categoria",
+        "Por Categoria de Sintoma": "sintoma_categoria",
+        "Por Solução Aplicada": "solucao_categoria",
+        "Por Módulo (Nível 2)": "recurso_nivel_2",
+        "Por Funcionalidade (Nível 3)": "recurso_nivel_3",
+        "Por Evento eSocial": "evento_esocial",
+        "Por Código de Erro": "codigo_erro"
+    }
+    
+    col_sel, col_metrics = st.columns([1, 2])
+    
+    with col_sel:
+        visao_selecionada = st.selectbox("Selecione a Taxonomia para Análise:", list(opcoes_visao.keys()))
+        coluna_analise = opcoes_visao[visao_selecionada]
 
-    # --- ÁREA DE DEBUG (Visível para entendermos o erro) ---
-    with st.expander("🕵️ Logs de Conexão (Debug)", expanded=True):
-        st.write(f"**URL Base:** `{STATS_URL}`")
-        st.write(f"**Tenant ID:** `{tenant_id}`")
+    # --- 4. GRÁFICO DE DISTRIBUIÇÃO ---
+    # Filtra "-" para não poluir o gráfico se for evento/erro
+    df_chart = df_tickets[df_tickets[coluna_analise] != "-"][coluna_analise].value_counts().reset_index()
+    df_chart.columns = ["Categoria", "Quantidade"]
 
-    # --- 1. BUSCA DADOS DE CLASSIFICAÇÃO ---
-    try:
-        url_class = f"{STATS_URL}/tickets/classification"
-        # st.write(f"Tentando conectar em: {url_class}...") # Log visual
-        
-        resp_class = requests.get(url_class, headers={"X-Tenant-ID": tenant_id})
-        
-        # LOG DO STATUS
-        if resp_class.status_code != 200:
-            st.error(f"🚨 Erro na API Classificação: {resp_class.status_code}")
-            st.code(resp_class.text) # Mostra o erro cru do Flask
+    with col_metrics:
+        total = len(df_tickets)
+        if not df_chart.empty:
+            top_item = df_chart.iloc[0]["Categoria"]
+            qtd_top = df_chart.iloc[0]["Quantidade"]
+            st.metric("Total de Tickets (Persona SQL)", total, delta=f"Top ofensor: {top_item} ({qtd_top})", delta_color="inverse")
         else:
-            data_class = resp_class.json()
-            # st.success(f"✅ Classificação carregada: {len(data_class)} registros") # Log sucesso
-            
-            # KPI: Total de Tickets
-            total_tickets = sum([item['value'] for item in data_class])
-            col_kpi1.metric("Total de Tickets Ingeridos", total_tickets)
-            
-            # KPI: Taxa de Utilidade
-            util_tickets = next((item['value'] for item in data_class if item['label'] == 'UTIL'), 0)
-            taxa_util = (util_tickets / total_tickets * 100) if total_tickets > 0 else 0
-            col_kpi2.metric("Taxa de Tickets Úteis", f"{taxa_util:.1f}%")
+             st.metric("Total de Tickets", total)
 
-            st.divider()
+    st.subheader(f"Distribuição: {visao_selecionada}")
+    if not df_chart.empty:
+        st.bar_chart(df_chart.set_index("Categoria"), color="#FF4B4B")
+    else:
+        st.warning("Nenhum dado relevante para essa visão.")
 
-            c_chart1, c_chart2 = st.columns(2)
-            with c_chart1:
-                st.subheader("Classificação (IA)")
-                if data_class:
-                    df_class = pd.DataFrame(data_class)
-                    st.bar_chart(df_class.set_index("label"))
-                else:
-                    st.warning("⚠️ A API respondeu 200, mas a lista veio vazia `[]`.")
+    st.divider()
 
-    except Exception as e:
-        st.error(f"🔥 Exceção ao conectar (Classificação): {e}")
-
-    # --- 2. BUSCA DADOS DE SINTOMAS ---
-    try:
-        url_sint = f"{STATS_URL}/tickets/sintomas"
-        resp_sint = requests.get(url_sint, headers={"X-Tenant-ID": tenant_id})
+    # --- 5. DRILL-DOWN (DETALHAMENTO) ---
+    st.markdown(f"### 🔬 Detalhar Categoria: {visao_selecionada}")
+    
+    if not df_chart.empty:
+        col_drill1, col_drill2 = st.columns([1, 3])
         
-        if resp_sint.status_code != 200:
-            st.error(f"🚨 Erro na API Sintomas: {resp_sint.status_code}")
-            st.code(resp_sint.text)
-        else:
-            data_sint = resp_sint.json()
+        with col_drill1:
+            # Pega as categorias únicas da visão selecionada
+            categorias_disponiveis = df_chart["Categoria"].tolist()
+            categoria_foco = st.radio("Selecione o grupo:", options=categorias_disponiveis)
+
+        with col_drill2:
+            # Filtra o DataFrame original
+            df_filtrado = df_tickets[df_tickets[coluna_analise] == categoria_foco]
             
-            with c_chart2:
-                st.subheader("Top Sintomas Recorrentes")
-                if data_sint:
-                    df_sint = pd.DataFrame(data_sint)
-                    st.bar_chart(df_sint.set_index("label"), horizontal=True)
-                else:
-                    st.warning("⚠️ A API respondeu 200, mas sem sintomas.")
-                    
-            with st.expander("📋 Ver Tabela de Sintomas Completa"):
-                if data_sint:
-                    st.dataframe(pd.DataFrame(data_sint), use_container_width=True)
-                    
-    except Exception as e:
-        st.error(f"🔥 Exceção ao buscar sintomas: {e}")
+            st.write(f"**{len(df_filtrado)} Tickets em:** `{categoria_foco}`")
+            
+            # Mostra uma tabela rica
+            st.dataframe(
+                df_filtrado[[
+                    "id", "recurso_nivel_2", "recurso_nivel_3", 
+                    "sintoma_categoria", "sintoma_detalhe", 
+                    "evento_esocial", "codigo_erro"
+                ]], 
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "id": st.column_config.TextColumn("ID", width="small"),
+                    "recurso_nivel_2": st.column_config.TextColumn("Módulo", width="medium"),
+                    "recurso_nivel_3": st.column_config.TextColumn("Funcionalidade", width="medium"),
+                    "sintoma_categoria": st.column_config.TextColumn("Classif. Sintoma", width="medium"),
+                    "sintoma_detalhe": st.column_config.TextColumn("Detalhe do Problema (Único)", width="large"),
+                    "evento_esocial": st.column_config.TextColumn("Evento", width="small"),
+                    "codigo_erro": st.column_config.TextColumn("Erro", width="small"),
+                }
+            )
+    else:
+        st.info("Selecione outra visão para ver detalhes.")

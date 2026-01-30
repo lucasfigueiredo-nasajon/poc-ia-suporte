@@ -666,3 +666,69 @@ with tab_taxonomy:
                 # CASO 3: NENHUM ITEM SELECIONADO
                 # Aqui NÃO abrimos st.form nenhum, então não dá erro de "Missing Submit Button"
                 st.info("👈 Selecione um item na lista à esquerda para editar.")
+
+#=========================================================
+# ABA 5: GESTÃO DE TICKETS (NEO4J)
+# =========================================================
+with tab_tickets:
+    st.header("📊 Análise do Knowledge Graph (Neo4j)")
+    st.info("Visualização em tempo real dos tickets processados e armazenados no grafo.")
+
+    col_kpi1, col_kpi2, col_refresh = st.columns([2, 2, 1])
+    
+    # Botão de Atualizar
+    if col_refresh.button("🔄 Atualizar Dados"):
+        st.rerun()
+
+    # --- 1. BUSCA DADOS DE CLASSIFICAÇÃO (UTIL / INUTIL) ---
+    try:
+        resp_class = requests.get(f"{STATS_URL}/tickets/classification", headers={"X-Tenant-ID": tenant_id})
+        if resp_class.status_code == 200:
+            data_class = resp_class.json()
+            
+            # KPI: Total de Tickets
+            total_tickets = sum([item['value'] for item in data_class])
+            col_kpi1.metric("Total de Tickets Ingeridos", total_tickets)
+            
+            # KPI: Taxa de Utilidade
+            util_tickets = next((item['value'] for item in data_class if item['label'] == 'UTIL'), 0)
+            taxa_util = (util_tickets / total_tickets * 100) if total_tickets > 0 else 0
+            col_kpi2.metric("Taxa de Tickets Úteis", f"{taxa_util:.1f}%")
+
+            st.divider()
+
+            # GRÁFICO 1: Distribuição de Utilidade
+            c_chart1, c_chart2 = st.columns(2)
+            with c_chart1:
+                st.subheader("Classificação (IA)")
+                if data_class:
+                    df_class = pd.DataFrame(data_class)
+                    st.bar_chart(df_class.set_index("label"))
+                else:
+                    st.warning("Sem dados de classificação.")
+
+    except Exception as e:
+        st.error(f"Erro ao conectar com Neo4j Stats: {e}")
+
+    # --- 2. BUSCA DADOS DE SINTOMAS MAIS COMUNS ---
+    try:
+        resp_sint = requests.get(f"{STATS_URL}/tickets/sintomas", headers={"X-Tenant-ID": tenant_id})
+        if resp_sint.status_code == 200:
+            data_sint = resp_sint.json()
+            
+            with c_chart2:
+                st.subheader("Top Sintomas Recorrentes")
+                if data_sint:
+                    df_sint = pd.DataFrame(data_sint)
+                    # Gráfico de barras horizontal para sintomas (melhor leitura)
+                    st.bar_chart(df_sint.set_index("label"), horizontal=True)
+                else:
+                    st.warning("Sem dados de sintomas.")
+                    
+            # Tabela Detalhada
+            with st.expander("📋 Ver Tabela de Sintomas Completa"):
+                if data_sint:
+                    st.dataframe(pd.DataFrame(data_sint), use_container_width=True)
+                    
+    except Exception as e:
+        st.error(f"Erro ao buscar sintomas: {e}")

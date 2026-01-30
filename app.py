@@ -688,13 +688,6 @@ with tab_taxonomy:
 #=========================================================
 # ABA 5: GESTÃO DE TICKETS (NEO4J)
 # =========================================================
-Perfeito. Vamos transformar a Aba 5 em um painel de diagnóstico.
-
-Muitas vezes o botão "funciona", mas a API retorna um erro silencioso (404 ou 500) ou uma lista vazia [], e como não estamos tratando o else visualmente, parece que nada acontece.
-
-Substitua apenas o bloco with tab_tickets: no seu dev/app_streamlit.py por este código abaixo. Ele tem um "Modo Espião" que vai mostrar exatamente o que está indo e o que está voltando.
-Python
-
 # =========================================================
 # ABA 5: GESTÃO DE TICKETS (COM LOGS DE DEBUG)
 # =========================================================

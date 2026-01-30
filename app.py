@@ -39,7 +39,8 @@ tab_chat, tab_admin, tab_prompts, tab_taxonomy = st.tabs([
     "💬 Chat de Suporte", 
     "⚙️ Ingestão de Dados", 
     "📝 Gestão de Prompts",
-    "🗂️ Gestão de Taxonomias"
+    "🗂️ Gestão de Taxonomias",
+    "📊 Gestão de Tickets"
 ])
 
 # ---------------------------------------------------------

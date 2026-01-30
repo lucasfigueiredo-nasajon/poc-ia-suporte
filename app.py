@@ -51,28 +51,39 @@ tab_chat, tab_admin, tab_prompts, tab_taxonomy, tab_tickets = st.tabs([
 # ABA 1: CHAT DE SUPORTE
 # ---------------------------------------------------------
 # ---------------------------------------------------------
-# ABA 1: CHAT DE SUPORTE (VERSÃO FINAL CORRIGIDA)
+# ABA 1: CHAT DE SUPORTE (CORRIGIDO: BOTÃO + SISTEMA FIXO)
 # ---------------------------------------------------------
 with tab_chat:
-    # 1. Cria um container para segurar o histórico no topo
+    # --- 1. BOTÃO DE LIMPEZA (RESTAURADO) ---
+    col_btn, _ = st.columns([2, 8])
+    with col_btn:
+        if st.button("🗑️ Limpar Conversa / Reiniciar", type="secondary"):
+            st.session_state.messages = []
+            st.session_state.conversation_id = str(uuid.uuid4())
+            st.rerun()
+    
+    st.divider()
+
+    # --- 2. CONFIGURAÇÕES FIXAS (HARDCODED) ---
+    sistema = "Persona SQL"
+
+    # --- 3. CONTAINER DE MENSAGENS ---
     chat_container = st.container()
 
-    # 2. Renderiza o Input (Fixo na parte inferior visualmente)
+    # --- 4. INPUT DE TEXTO ---
     prompt = st.chat_input("Olá! Em que posso ajudar?")
 
-    # 3. Renderiza o Histórico (DENTRO do container)
+    # --- 5. RENDERIZAÇÃO DO HISTÓRICO ---
     with chat_container:
-        # Função para decidir qual ícone mostrar
         def get_avatar(role, metadata=None):
             if role == "user": return "👤"
             if metadata:
                 agent = metadata.get("agent", "")
-                if "receptionist" in agent: return "💁‍♀️" # Ícone Recepcionista
-                if "specialist" in agent: return "👷‍♂️" # Ícone Especialista
-                if "ticket" in agent: return "🎫"      # Ícone Ticket
-            return "🤖" # Ícone Padrão
+                if "receptionist" in agent: return "💁‍♀️"
+                if "specialist" in agent: return "👷‍♂️"
+                if "ticket" in agent: return "🎫"
+            return "🤖"
 
-        # Loop para mostrar mensagens salvas
         for message in st.session_state.messages:
             avatar = get_avatar(message["role"], message.get("debug"))
             with st.chat_message(message["role"], avatar=avatar):
@@ -81,35 +92,30 @@ with tab_chat:
                     with st.expander("ℹ️ Bastidores"):
                         st.json(message["debug"])
 
-    # 4. Processamento da Nova Mensagem
+    # --- 6. PROCESSAMENTO DO PROMPT ---
     if prompt:
-        # Mostra a mensagem do usuário imediatamente no container
         with chat_container:
             st.chat_message("user", avatar="👤").markdown(prompt)
-        
-        # Salva no histórico
-        st.session_state.messages.append({"role": "user", "content": prompt})
+            st.session_state.messages.append({"role": "user", "content": prompt})
 
-        # Resposta do Assistente
-        with chat_container:
             with st.chat_message("assistant", avatar="🤖"):
                 message_placeholder = st.empty()
                 message_placeholder.markdown("🧠 *Analisando solicitação...*")
                 
                 try:
-                    # Prepara o histórico recente para enviar ao backend (Contexto)
+                    # Prepara histórico
                     historico_para_enviar = []
                     for msg in st.session_state.messages[:-1]:
                         msg_payload = {"role": msg["role"], "content": msg["content"]}
                         if "agent" in msg: msg_payload["agent"] = msg["agent"]
                         historico_para_enviar.append(msg_payload)
 
-                    # Payload Completo
                     payload = {
                         "conversation_id": st.session_state.conversation_id,
                         "message": prompt,
                         "history": historico_para_enviar,
-                        "context": {"sistema": sistema} # Usa a variável 'sistema' da sidebar
+                        # Aqui usamos a variável 'sistema' que definimos fixa no topo
+                        "context": {"sistema": sistema} 
                     }
                     
                     headers = {
@@ -117,41 +123,30 @@ with tab_chat:
                         "Content-Type": "application/json"
                     }
                     
-                    # Chamada API
+                    # Chama API
                     response = requests.post(CHAT_URL, json=payload, headers=headers, timeout=60)
                     
                     if response.status_code == 200:
                         data = response.json()
-                        
-                        # Recupera a resposta de texto (prioridade para 'response')
                         bot_response = data.get("response") or data.get("answer") or "⚠️ Resposta vazia."
                         metadata = data.get("metadata", {})
                         
-                        # Atualiza a tela com a resposta final
                         message_placeholder.markdown(bot_response)
                         
-                        # --- CORREÇÃO IMPORTANTE AQUI ---
-                        # Salva 'bot_response' (o texto real) e não 'full_response'
-                        # Salva também os metadados para manter os ícones no refresh
                         st.session_state.messages.append({
                             "role": "assistant", 
                             "content": bot_response, 
                             "debug": metadata,
                             "agent": metadata.get("agent")
                         })
-                        
-                        # Rerun para atualizar os ícones visualmente
                         st.rerun()
-                        
                     else:
-                        error_msg = f"❌ Erro {response.status_code}: {response.text}"
-                        message_placeholder.error(error_msg)
-                        
+                        message_placeholder.error(f"❌ Erro {response.status_code}: {response.text}")
+                
                 except requests.exceptions.ConnectionError:
                     message_placeholder.error(f"🔌 Não foi possível conectar em: {CHAT_URL}")
                 except Exception as e:
                     message_placeholder.error(f"🔌 Erro inesperado: {str(e)}")
-# ---------------------------------------------------------
 # ABA 2: INGESTÃO E VISUALIZAÇÃO (VERSÃO FINAL)
 # ---------------------------------------------------------
 # ---------------------------------------------------------

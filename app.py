@@ -35,12 +35,12 @@ with col2:
     st.caption(f"Painel de Atendimento Inteligente | Tenant: {tenant_id}")
 
 # --- DEFINIÇÃO DAS ABAS ---
-tab_chat, tab_admin, tab_prompts, tab_taxonomy = st.tabs([
+tab_chat, tab_admin, tab_prompts, tab_taxonomy, tab_tickets = st.tabs([
     "💬 Chat de Suporte", 
     "⚙️ Ingestão de Dados", 
     "📝 Gestão de Prompts",
     "🗂️ Gestão de Taxonomias",
-    "📊 Gestão de Tickets"
+    "📊 Gestão de Tickets" # <--- NOVA ABA
 ])
 
 # ---------------------------------------------------------

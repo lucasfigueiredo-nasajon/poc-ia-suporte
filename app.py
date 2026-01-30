@@ -691,11 +691,11 @@ with tab_taxonomy:
 #=========================================================
 # ABA 5: GESTÃO DE TICKETS (NEO4J)
 # =========================================================
-import altair as alt # Certifique-se de ter importado isso no topo do arquivo
+import altair as alt
 import random
 
 # =========================================================
-# ABA 5: GESTÃO DE TICKETS (VISUALIZAÇÃO COMPLETA)
+# ABA 5: GESTÃO DE TICKETS (COM DETALHES E CHAT)
 # =========================================================
 with tab_tickets:
     st.header("📊 Análise de Tickets (Protótipo Visual)")
@@ -711,7 +711,7 @@ with tab_tickets:
             "Eventos Periódicos", "FGTS Digital", "Outro", "Painel eSocial", "SST"
         ]
     }
-    # Listas de Categorias (Causas, Sintomas, Soluções, etc...)
+    
     CATEGORIAS_SINTOMA = [
         "Bug de Funcionalidade / Erro de Tela", "Dúvida de Cadastro / Configuração",
         "Dúvida de Processo / \"Como Fazer\"", "Dúvida sobre Relatório / Visualização",
@@ -720,21 +720,24 @@ with tab_tickets:
         "Outro", "Risco de Churn / Insatisfação", "Solicitação Administrativa (Financeiro)",
         "Solicitação de Serviço Interno / Infra"
     ]
+    
     CATEGORIAS_CAUSA = [
         "Defeito de Software / Bug", "Dúvida / Negócio (Não Técnico)",
         "Erro Operacional / Parametrização", "Falha de Ambiente / Infraestrutura",
         "Fator Externo / Terceiros", "Gestão de Acesso / Identidade",
         "Inconsistência de Dados / Banco", "Limitação do Sistema / By Design", "Outro"
     ]
+    
     CATEGORIAS_SOLUCAO = [
         "Configuração e Parametrização", "Correção de Dados / Saneamento",
         "Escalonamento / Correção de Bug", "Intervenção Técnica / Infraestrutura",
         "Orientação e Educação (Procedimental)", "Outro", "Serviço Administrativo / Comercial"
     ]
+    
     EVENTOS_ESOCIAL = ["S-1000", "S-1005", "S-1010", "S-2200", "S-2299", "S-1200", "S-1210", "S-1299"]
     CODIGOS_ERRO = ["105", "106", "1728", "536", "588", "Access violation", "Violação de PK"]
 
-    # --- 2. GERADOR DE DADOS MOCKADOS ---
+    # --- 2. GERADOR DE DADOS MOCKADOS (ENRIQUECIDO) ---
     @st.cache_data
     def load_mock_data(qtd=60):
         data = []
@@ -742,11 +745,14 @@ with tab_tickets:
             nivel_2 = random.choice(list(TAXONOMIA_PERSONA.keys()))
             nivel_3 = random.choice(TAXONOMIA_PERSONA[nivel_2])
             cat_sintoma = random.choice(CATEGORIAS_SINTOMA)
+            cat_causa = random.choice(CATEGORIAS_CAUSA)
+            cat_solucao = random.choice(CATEGORIAS_SOLUCAO)
             
             evento = None
             erro = None
             detalhe_extra = ""
 
+            # Lógica simples para contexto
             if nivel_2 == "eSocial":
                 evento = random.choice(EVENTOS_ESOCIAL)
                 if cat_sintoma == "Erro de Transmissão (Governo)":
@@ -760,23 +766,52 @@ with tab_tickets:
                  erro = random.choice(["Access violation", "Violação de PK"]) if random.random() > 0.5 else None
                  detalhe_extra = f"apresentando mensagem {erro}." if erro else "travando a tela."
 
-            descricoes = [
+            # Detalhes Gerados
+            detalhe_sintoma = random.choice([
                 f"Cliente relata problema no {nivel_3} {detalhe_extra}",
                 f"Dificuldade em processar {nivel_3}, sistema {detalhe_extra}",
                 f"Ao tentar gerar {nivel_2}, ocorre inconsistência {detalhe_extra}",
+            ])
+
+            detalhe_causa = random.choice([
+                f"Identificado que o cadastro em {nivel_3} estava incompleto.",
+                f"O ambiente do cliente estava sem permissão de escrita na pasta do sistema.",
+                f"Falha na comunicação com o webservice do governo (instabilidade).",
+                f"Bug na versão atual relacionado ao cálculo de {nivel_3}.",
+                f"Usuário desconhecia o parâmetro X na configuração global."
+            ])
+
+            detalhe_solucao = random.choice([
+                f"Orientado cliente a preencher o campo obrigatório em {nivel_3}.",
+                f"Realizado script de correção no banco de dados para ajustar a referência.",
+                f"Aberto chamado para o desenvolvimento (Issue #1234).",
+                f"Atualizado sistema para a versão mais recente (Patch de correção).",
+                f"Reiniciado serviços do Persona e liberado permissões de rede."
+            ])
+
+            # Conversa Simulada
+            conversa = [
+                {"role": "user", "author": "Cliente", "text": f"Olá, estou com problemas no {nivel_2}. {detalhe_sintoma}"},
+                {"role": "assistant", "author": "Agente IA", "text": f"Olá! Entendo. Parece ser um caso de {cat_sintoma}. Poderia me enviar um print?"},
+                {"role": "user", "author": "Cliente", "text": "Segue em anexo. O erro acontece sempre que tento salvar."},
+                {"role": "assistant", "author": "Agente IA", "text": f"Analisando o log, parece que a causa é: {cat_causa}. Sugiro: {detalhe_solucao}"},
+                {"role": "user", "author": "Cliente", "text": "Funcionou! Obrigado."}
             ]
-            
+
             ticket = {
                 "id": f"T{i:03d}",
                 "recurso_nivel_1": "Persona SQL",
                 "recurso_nivel_2": nivel_2,
                 "recurso_nivel_3": nivel_3,
                 "sintoma_categoria": cat_sintoma,
-                "sintoma_detalhe": random.choice(descricoes),
-                "causa_categoria": random.choice(CATEGORIAS_CAUSA),
-                "solucao_categoria": random.choice(CATEGORIAS_SOLUCAO),
+                "sintoma_detalhe": detalhe_sintoma,
+                "causa_categoria": cat_causa,
+                "causa_detalhe": detalhe_causa,
+                "solucao_categoria": cat_solucao,
+                "solucao_detalhe": detalhe_solucao,
                 "evento_esocial": evento if evento else "-",
-                "codigo_erro": erro if erro else "-"
+                "codigo_erro": erro if erro else "-",
+                "conversa_completa": conversa
             }
             data.append(ticket)
         return pd.DataFrame(data)
@@ -810,7 +845,6 @@ with tab_tickets:
     st.subheader(f"Distribuição: {visao_selecionada}")
     
     if not df_chart.empty:
-        # Gráfico Horizontal com Altair (Melhor leitura de labels)
         chart = alt.Chart(df_chart).mark_bar(color="#FF4B4B").encode(
             x=alt.X('Quantidade', title='Qtd Tickets'), 
             y=alt.Y('Categoria', sort='-x', title=None, axis=alt.Axis(labelLimit=300)),
@@ -844,17 +878,14 @@ with tab_tickets:
     
     st.divider()
 
-    # --- 5. FICHA TÉCNICA DO TICKET (NOVO!) ---
+    # --- 5. FICHA TÉCNICA DO TICKET (ATUALIZADA) ---
     st.markdown("### 🎫 Ficha Técnica do Ticket")
-    st.caption("Pesquise pelo ID para ver a classificação completa feita pela IA.")
+    st.caption("Pesquise pelo ID para ver a classificação completa e o histórico.")
 
     col_search, col_card = st.columns([1, 3])
 
     with col_search:
-        # Input de Busca
         search_id = st.text_input("Digite o ID do Ticket:", placeholder="Ex: T015").upper()
-        
-        # Dica visual de IDs disponíveis (para teste)
         if not df_tickets.empty:
             sample_id = df_tickets.iloc[0]['id']
             st.caption(f"Tente: {sample_id}")
@@ -866,7 +897,7 @@ with tab_tickets:
             if not ticket_found.empty:
                 t = ticket_found.iloc[0]
                 
-                # --- CARD VISUAL ---
+                # CARD PRINCIPAL
                 with st.container(border=True):
                     # Cabeçalho
                     c1, c2 = st.columns([3, 1])
@@ -876,24 +907,34 @@ with tab_tickets:
                     
                     st.divider()
 
-                    # Classificações Principais (Coloridas)
-                    k1, k2, k3 = st.columns(3)
-                    k1.info(f"**Sintoma:**\n\n{t['sintoma_categoria']}")
-                    k2.warning(f"**Causa:**\n\n{t['causa_categoria']}")
-                    k3.success(f"**Solução:**\n\n{t['solucao_categoria']}")
-                    
-                    st.markdown("#### 📝 Detalhe do Problema")
+                    # BLOCO DE CLASSIFICAÇÃO DETALHADA
+                    # Sintoma
+                    st.info(f"**Sintoma ({t['sintoma_categoria']})**")
                     st.write(f"> {t['sintoma_detalhe']}")
-
-                    # Dados Técnicos (Se houver)
+                    
+                    # Causa
+                    st.warning(f"**Causa ({t['causa_categoria']})**")
+                    st.write(f"> {t['causa_detalhe']}")
+                    
+                    # Solução
+                    st.success(f"**Solução ({t['solucao_categoria']})**")
+                    st.write(f"> {t['solucao_detalhe']}")
+                    
+                    # Dados Técnicos
                     if t['evento_esocial'] != "-" or t['codigo_erro'] != "-":
                         st.markdown("---")
-                        st.markdown("#### 🛠️ Metadata Técnico")
                         t1, t2 = st.columns(2)
-                        if t['evento_esocial'] != "-": 
-                            t1.metric("Evento eSocial", t['evento_esocial'])
-                        if t['codigo_erro'] != "-": 
-                            t2.metric("Código de Erro", t['codigo_erro'])
+                        if t['evento_esocial'] != "-": t1.metric("Evento eSocial", t['evento_esocial'])
+                        if t['codigo_erro'] != "-": t2.metric("Código de Erro", t['codigo_erro'])
+
+                    # CHAT / CONVERSA COMPLETA
+                    st.markdown("---")
+                    with st.expander("💬 Histórico da Conversa", expanded=False):
+                        for msg in t['conversa_completa']:
+                            avatar = "👤" if msg['role'] == "user" else "🤖"
+                            with st.chat_message(msg['role'], avatar=avatar):
+                                st.write(f"**{msg['author']}:** {msg['text']}")
+
             else:
                 st.error(f"Ticket **{search_id}** não encontrado.")
         else:

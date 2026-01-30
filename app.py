@@ -4,6 +4,7 @@ import uuid
 import json
 import pandas as pd
 import random
+import altair as alt
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -841,8 +842,32 @@ with tab_tickets:
              st.metric("Total de Tickets", total)
 
     st.subheader(f"Distribuição: {visao_selecionada}")
+    
     if not df_chart.empty:
-        st.bar_chart(df_chart.set_index("Categoria"), color="#FF4B4B")
+        # Criação do Gráfico Horizontal com Altair
+        chart = alt.Chart(df_chart).mark_bar(color="#FF4B4B").encode(
+            # Eixo X agora é a quantidade
+            x=alt.X('Quantidade', title='Qtd Tickets'), 
+            # Eixo Y são as categorias, ordenadas pela quantidade (decrescente)
+            y=alt.Y('Categoria', sort='-x', title=None, axis=alt.Axis(labelLimit=300)), 
+            # Tooltip para ver detalhes ao passar o mouse
+            tooltip=['Categoria', 'Quantidade']
+        ).properties(
+            height=400 # Altura fixa para garantir espaço
+        )
+        
+        # Adiciona rótulos de texto (números) ao lado das barras
+        text = chart.mark_text(
+            align='left',
+            baseline='middle',
+            dx=3  # Deslocamento de 3 pixels para a direita
+        ).encode(
+            text='Quantidade'
+        )
+        
+        # Renderiza gráfico + texto combinados
+        st.altair_chart(chart + text, use_container_width=True)
+
     else:
         st.warning("Nenhum dado relevante para essa visão.")
 

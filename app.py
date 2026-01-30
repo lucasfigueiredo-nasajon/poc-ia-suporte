@@ -12,6 +12,7 @@ st.set_page_config(
 
 # --- CONSTANTES & DEFAULTS ---
 BASE_URL = "https://api.nasajon.app/nsj-ia-suporte"
+STATS_URL = f"{BASE_URL}/stats"
 # BASE_URL = "http://localhost:5000/nsj-ia-suporte" # Dev Local
 
 INGEST_URL = f"{BASE_URL}/ingest-pipeline"

@@ -100,11 +100,22 @@ with tab_chat:
                     
                     if response.status_code == 200:
                         data = response.json()
-                        # Assume que o backend devolve {"answer": "texto..."}
-                        # Ajuste a chave 'answer' se seu backend retornar outro nome (ex: 'response')
-                        full_response = data.get("answer", "⚠️ O backend respondeu, mas sem conteúdo de texto.")
                         
-                        message_placeholder.markdown(full_response)
+                        # --- LINHA DE DEBUG (Adicione isso temporariamente) ---
+                        with st.chat_message("assistant"):
+                            st.warning("🔍 DEBUG DO JSON RECEBIDO:")
+                            st.json(data)
+                        # -----------------------------------------------------
+    
+                        # Tenta pegar a resposta em várias chaves possíveis
+                        bot_response = data.get("response") or data.get("answer") or data.get("message") or data.get("result")
+                        
+                        if not bot_response:
+                            bot_response = "⚠️ O backend respondeu, mas sem conteúdo de texto."
+    
+                        metadata = data.get("metadata", {})
+                        
+                        message_placeholder.markdown(bot_response)
                         
                         # Salva resposta no histórico
                         st.session_state.messages.append({"role": "assistant", "content": full_response})

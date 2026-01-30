@@ -811,11 +811,11 @@ with tab_tickets:
     
     # Mapeamento: Nome Amigável -> Coluna do DataFrame
     opcoes_visao = {
-        "Por Causa Raiz": "causa_categoria",
-        "Por Categoria de Sintoma": "sintoma_categoria",
-        "Por Solução Aplicada": "solucao_categoria",
-        "Por Módulo (Nível 2)": "recurso_nivel_2",
-        "Por Funcionalidade (Nível 3)": "recurso_nivel_3",
+        "Por Causa": "causa_categoria",
+        "Por Sintoma": "sintoma_categoria",
+        "Por Solução": "solucao_categoria",
+        "Por Recurso (Nível 2)": "recurso_nivel_2",
+        "Por Recurso (Nível 3)": "recurso_nivel_3",
         "Por Evento eSocial": "evento_esocial",
         "Por Código de Erro": "codigo_erro"
     }

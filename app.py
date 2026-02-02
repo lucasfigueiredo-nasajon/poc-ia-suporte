@@ -694,94 +694,64 @@ with tab_taxonomy:
                 st.info("👈 Selecione um item na lista à esquerda para editar.")
 
 # =========================================================
-# ABA 5: GESTÃO DE TICKETS (NEO4J REAL-TIME)
-# =========================================================
-import pandas as pd
-import altair as alt
-from neo4j import GraphDatabase
-from nasajon.settings import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
-
-# Função para buscar dados reais do Grafo
-@st.cache_data(ttl=60) # Cache de 1 minuto para não pesar no banco
-def get_tickets_from_neo4j():
-    driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
-    
-    query = """
-    MATCH (t:Ticket)
-    
-    /* 1. Recupera Hierarquia de Recursos */
-    OPTIONAL MATCH (t)-[:REFERENTE_A]->(r3:RecursoNivel3)-[:PERTENCE_A]->(r2:RecursoNivel2)-[:PERTENCE_A]->(r1:RecursoNivel1)
-    
-    /* 2. Recupera Categorias e Detalhes */
-    OPTIONAL MATCH (t)-[:APRESENTA_SINTOMA]->(ds:DetalheSintoma)-[:DA_CATEGORIA]->(cat_s:CategoriaSintoma)
-    OPTIONAL MATCH (t)-[:POSSUI_CAUSA]->(dc:DetalheCausa)-[:DA_CATEGORIA]->(cat_c:CategoriaCausa)
-    OPTIONAL MATCH (t)-[:APLICOU_SOLUCAO]->(dsol:DetalheSolucao)-[:DA_CATEGORIA]->(cat_sol:CategoriaSolucao)
-    
-    /* 3. Listas Agregadas */
-    OPTIONAL MATCH (t)-[:GEROU_ERRO]->(e:Erro)
-    OPTIONAL MATCH (t)-[:ENVOLVE_EVENTO]->(ev:EventoEsocial)
-
-    RETURN 
-        t.id as id,
-        t.titulo as titulo,
-        t.protocolo as protocolo,
-        coalesce(r1.nome, 'Persona SQL') as recurso_nivel_1,
-        coalesce(r2.nome, 'Geral') as recurso_nivel_2,
-        coalesce(r3.nome, 'Não Classificado') as recurso_nivel_3,
-        
-        coalesce(cat_s.nome, 'Outro') as sintoma_categoria,
-        coalesce(ds.descricao, 'Sem detalhes') as sintoma_detalhe,
-        
-        coalesce(cat_c.nome, 'Não Identificada') as causa_categoria,
-        coalesce(dc.descricao, 'Não detalhada') as causa_detalhe,
-        
-        coalesce(cat_sol.nome, 'Outro') as solucao_categoria,
-        coalesce(dsol.descricao, t.passos_solucao, 'Sem solução') as solucao_detalhe,
-        
-        collect(DISTINCT e.codigo) as lista_erros,
-        collect(DISTINCT ev.codigo) as lista_eventos,
-        t.ingested_at as data_ingestao
-    ORDER BY t.ingested_at DESC LIMIT 100
-    """
-    
-    try:
-        with driver.session() as session:
-            result = session.run(query)
-            data = [dict(record) for record in result]
-            return pd.DataFrame(data)
-    except Exception as e:
-        st.error(f"Erro ao conectar no Neo4j: {e}")
-        return pd.DataFrame()
-    finally:
-        driver.close()
-
-# =========================================================
-# LAYOUT DA ABA
+# ABA 5: GESTÃO DE TICKETS (VIA API)
 # =========================================================
 with tab_tickets:
     st.header("📊 Inteligência de Suporte (Real-Time)")
     
+    # URL da nova rota que criamos no wsgi.py
+    # BASE_URL já foi definido no início do seu app.py (https://api.nasajon.app/nsj-ia-suporte)
+    ANALYTICS_URL = f"{BASE_URL}/tickets/analytics"
+    
+    # Função para buscar dados da API
+    @st.cache_data(ttl=60)
+    def fetch_tickets_api():
+        try:
+            # Consome a rota criada no Passo 2
+            resp = requests.get(ANALYTICS_URL, params={"limit": 100}, headers={"X-Tenant-ID": tenant_id}, timeout=10)
+            if resp.status_code == 200:
+                return pd.DataFrame(resp.json())
+            else:
+                st.error(f"Erro API: {resp.text}")
+                return pd.DataFrame()
+        except Exception as e:
+            st.error(f"Falha de conexão: {e}")
+            return pd.DataFrame()
+
     # 1. CARREGAMENTO DE DADOS
-    with st.spinner("Conectando ao Knowledge Graph..."):
-        df_tickets = get_tickets_from_neo4j()
+    with st.spinner("Sincronizando com Knowledge Graph..."):
+        df_tickets = fetch_tickets_api()
 
     if df_tickets.empty:
-        st.warning("📭 O Knowledge Graph está vazio ou inacessível. Realize a ingestão na aba anterior.")
+        st.warning("📭 Nenhum dado retornado pela API ou falha de conexão.")
     else:
-        # Processamento de listas para exibição (remove colchetes feios)
-        df_tickets['erros_str'] = df_tickets['lista_erros'].apply(lambda x: ", ".join(x) if x else "-")
-        df_tickets['eventos_str'] = df_tickets['lista_eventos'].apply(lambda x: ", ".join(x) if x else "-")
+        # Processamento de listas para exibição
+        # A API retorna listas Python (JSON), convertemos para string bonita para o dataframe
+        df_tickets['erros_str'] = df_tickets['lista_erros'].apply(lambda x: ", ".join(x) if isinstance(x, list) and x else "-")
+        df_tickets['eventos_str'] = df_tickets['lista_eventos'].apply(lambda x: ", ".join(x) if isinstance(x, list) and x else "-")
 
         col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
         with col_kpi1:
-            st.metric("Total de Tickets (Grafo)", len(df_tickets))
+            st.metric("Total de Tickets (Amostra)", len(df_tickets))
         with col_kpi2:
-            top_modulo = df_tickets['recurso_nivel_2'].mode()[0] if not df_tickets.empty else "N/A"
+            # Verifica se a coluna existe antes de calcular mode
+            if 'recurso_nivel_2' in df_tickets.columns and not df_tickets['recurso_nivel_2'].empty:
+                top_modulo = df_tickets['recurso_nivel_2'].mode()[0]
+            else:
+                top_modulo = "N/A"
             st.metric("Módulo Mais Crítico", top_modulo)
         with col_kpi3:
-            top_erro = df_tickets[df_tickets['erros_str'] != "-"]['erros_str'].mode()
-            val_erro = top_erro[0] if not top_erro.empty else "Nenhum"
-            st.metric("Erro Mais Comum", val_erro)
+            # Lógica para achar o erro mais comum dentro das listas
+            todos_erros = []
+            for lista in df_tickets['lista_erros']:
+                if isinstance(lista, list): todos_erros.extend(lista)
+            
+            if todos_erros:
+                from collections import Counter
+                top_erro = Counter(todos_erros).most_common(1)[0][0]
+            else:
+                top_erro = "Nenhum"
+            st.metric("Erro Mais Comum", top_erro)
 
         st.divider()
 
@@ -802,33 +772,34 @@ with tab_tickets:
             coluna_analise = opcoes_visao[visao_selecionada]
 
         # Prepara dados para o gráfico
-        df_chart = df_tickets[coluna_analise].value_counts().reset_index()
-        df_chart.columns = ["Categoria", "Quantidade"]
+        if coluna_analise in df_tickets.columns:
+            df_chart = df_tickets[coluna_analise].value_counts().reset_index()
+            df_chart.columns = ["Categoria", "Quantidade"]
 
-        with c_graph:
-            if not df_chart.empty:
-                chart = alt.Chart(df_chart).mark_bar(color="#FF4B4B", cornerRadiusEnd=4).encode(
-                    x=alt.X('Quantidade', title=None), 
-                    y=alt.Y('Categoria', sort='-x', title=None),
-                    tooltip=['Categoria', 'Quantidade']
-                ).properties(height=300)
-                
-                text = chart.mark_text(align='left', baseline='middle', dx=3).encode(text='Quantidade')
-                st.altair_chart(chart + text, use_container_width=True)
-
+            with c_graph:
+                if not df_chart.empty:
+                    chart = alt.Chart(df_chart).mark_bar(color="#FF4B4B", cornerRadiusEnd=4).encode(
+                        x=alt.X('Quantidade', title=None), 
+                        y=alt.Y('Categoria', sort='-x', title=None),
+                        tooltip=['Categoria', 'Quantidade']
+                    ).properties(height=300)
+                    
+                    text = chart.mark_text(align='left', baseline='middle', dx=3).encode(text='Quantidade')
+                    st.altair_chart(chart + text, use_container_width=True)
+        
         # --- 3. DRILL DOWN (TABELA) ---
         st.markdown(f"### 🔬 Detalhar: {visao_selecionada}")
         
         col_drill1, col_drill2 = st.columns([1, 3])
         with col_drill1:
-            cats = df_chart["Categoria"].tolist()
+            cats = df_chart["Categoria"].tolist() if not df_chart.empty else []
             if cats:
                 cat_foco = st.selectbox("Filtrar Categoria:", cats)
             else:
                 cat_foco = None
 
         with col_drill2:
-            if cat_foco:
+            if cat_foco and coluna_analise in df_tickets.columns:
                 df_filtro = df_tickets[df_tickets[coluna_analise] == cat_foco]
                 st.write(f"**{len(df_filtro)} Tickets encontrados**")
                 
@@ -851,20 +822,19 @@ with tab_tickets:
         col_search, col_card = st.columns([1, 2])
 
         with col_search:
-            # Dropdown com busca para facilitar
             ticket_options = df_tickets["id"].tolist()
             # Formata para mostrar ID e Titulo no dropdown
-            format_func = lambda x: f"{x} - {df_tickets[df_tickets['id']==x]['titulo'].values[0][:30]}..."
+            # Tratamento de erro caso o titulo seja None ou falte
+            format_func = lambda x: f"{x} - {str(df_tickets[df_tickets['id']==x]['titulo'].values[0])[:30]}..."
             
             selected_id = st.selectbox("Selecione um Ticket:", ticket_options, format_func=format_func)
             
             if selected_id:
                 t = df_tickets[df_tickets["id"] == selected_id].iloc[0]
                 
-                st.info(f"**Protocolo:** {t['protocolo']}")
-                st.caption(f"Ingerido em: {t['data_ingestao']}")
+                st.info(f"**Protocolo:** {t.get('protocolo', 'N/A')}")
+                st.caption(f"Ingerido em: {t.get('data_ingestao', 'N/A')}")
                 
-                # Tags/Metadata
                 if t['erros_str'] != "-": 
                     st.error(f"🛑 Erros: {t['erros_str']}")
                 if t['eventos_str'] != "-": 
@@ -881,7 +851,7 @@ with tab_tickets:
                     
                     # Problema
                     st.markdown(f"**🔴 SINTOMA: {t['sintoma_categoria']}**")
-                    st.write(t['sintoma_detalhe']) # Texto rico vetorizado
+                    st.write(t['sintoma_detalhe']) 
                     
                     st.divider()
                     
@@ -894,7 +864,11 @@ with tab_tickets:
                     # Solução (Tutorial)
                     st.markdown(f"**🟢 SOLUÇÃO: {t['solucao_categoria']}**")
                     # Renderiza passos se houver quebras de linha
-                    for line in t['solucao_detalhe'].split('\n'):
-                        st.write(line)
+                    sol_text = t.get('solucao_detalhe', '')
+                    if sol_text:
+                        for line in sol_text.split('\n'):
+                            st.write(line)
+                    else:
+                        st.write("Sem solução registrada.")
             else:
                 st.info("Selecione um ticket para ver os detalhes extraídos pela IA.")

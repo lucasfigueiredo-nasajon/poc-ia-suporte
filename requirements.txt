@@ -1,2 +1,6 @@
+neo4j
+pandas
+altair
+langchain-openai
+langchain-neo4j
 streamlit
-requests

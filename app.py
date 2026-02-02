@@ -693,254 +693,208 @@ with tab_taxonomy:
                 # Aqui NÃO abrimos st.form nenhum, então não dá erro de "Missing Submit Button"
                 st.info("👈 Selecione um item na lista à esquerda para editar.")
 
-#=========================================================
-# ABA 5: GESTÃO DE TICKETS (NEO4J)
 # =========================================================
+# ABA 5: GESTÃO DE TICKETS (NEO4J REAL-TIME)
+# =========================================================
+import pandas as pd
 import altair as alt
-import random
+from neo4j import GraphDatabase
+from nasajon.settings import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
+
+# Função para buscar dados reais do Grafo
+@st.cache_data(ttl=60) # Cache de 1 minuto para não pesar no banco
+def get_tickets_from_neo4j():
+    driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
+    
+    query = """
+    MATCH (t:Ticket)
+    
+    /* 1. Recupera Hierarquia de Recursos */
+    OPTIONAL MATCH (t)-[:REFERENTE_A]->(r3:RecursoNivel3)-[:PERTENCE_A]->(r2:RecursoNivel2)-[:PERTENCE_A]->(r1:RecursoNivel1)
+    
+    /* 2. Recupera Categorias e Detalhes */
+    OPTIONAL MATCH (t)-[:APRESENTA_SINTOMA]->(ds:DetalheSintoma)-[:DA_CATEGORIA]->(cat_s:CategoriaSintoma)
+    OPTIONAL MATCH (t)-[:POSSUI_CAUSA]->(dc:DetalheCausa)-[:DA_CATEGORIA]->(cat_c:CategoriaCausa)
+    OPTIONAL MATCH (t)-[:APLICOU_SOLUCAO]->(dsol:DetalheSolucao)-[:DA_CATEGORIA]->(cat_sol:CategoriaSolucao)
+    
+    /* 3. Listas Agregadas */
+    OPTIONAL MATCH (t)-[:GEROU_ERRO]->(e:Erro)
+    OPTIONAL MATCH (t)-[:ENVOLVE_EVENTO]->(ev:EventoEsocial)
+
+    RETURN 
+        t.id as id,
+        t.titulo as titulo,
+        t.protocolo as protocolo,
+        coalesce(r1.nome, 'Persona SQL') as recurso_nivel_1,
+        coalesce(r2.nome, 'Geral') as recurso_nivel_2,
+        coalesce(r3.nome, 'Não Classificado') as recurso_nivel_3,
+        
+        coalesce(cat_s.nome, 'Outro') as sintoma_categoria,
+        coalesce(ds.descricao, 'Sem detalhes') as sintoma_detalhe,
+        
+        coalesce(cat_c.nome, 'Não Identificada') as causa_categoria,
+        coalesce(dc.descricao, 'Não detalhada') as causa_detalhe,
+        
+        coalesce(cat_sol.nome, 'Outro') as solucao_categoria,
+        coalesce(dsol.descricao, t.passos_solucao, 'Sem solução') as solucao_detalhe,
+        
+        collect(DISTINCT e.codigo) as lista_erros,
+        collect(DISTINCT ev.codigo) as lista_eventos,
+        t.ingested_at as data_ingestao
+    ORDER BY t.ingested_at DESC LIMIT 100
+    """
+    
+    try:
+        with driver.session() as session:
+            result = session.run(query)
+            data = [dict(record) for record in result]
+            return pd.DataFrame(data)
+    except Exception as e:
+        st.error(f"Erro ao conectar no Neo4j: {e}")
+        return pd.DataFrame()
+    finally:
+        driver.close()
 
 # =========================================================
-# ABA 5: GESTÃO DE TICKETS (COM DETALHES E CHAT)
+# LAYOUT DA ABA
 # =========================================================
 with tab_tickets:
-    st.header("📊 Análise de Tickets (Protótipo Visual)")
-    st.info("Visualização baseada em dados mockados do Persona SQL para validação de layout.")
-
-    # --- 1. CONFIGURAÇÃO DAS TAXONOMIAS ---
-    TAXONOMIA_PERSONA = {
-        "Arquivos Oficiais": ["Geral"],
-        "Cadastros e Configurações": ["Geral"],
-        "Cálculos e Rotinas": ["Folha", "Férias", "Rescisão", "13º Salário"],
-        "eSocial": [
-            "DCTFWeb", "Eventos Iniciais", "Eventos Não Periódicos", 
-            "Eventos Periódicos", "FGTS Digital", "Outro", "Painel eSocial", "SST"
-        ]
-    }
+    st.header("📊 Inteligência de Suporte (Real-Time)")
     
-    CATEGORIAS_SINTOMA = [
-        "Bug de Funcionalidade / Erro de Tela", "Dúvida de Cadastro / Configuração",
-        "Dúvida de Processo / \"Como Fazer\"", "Dúvida sobre Relatório / Visualização",
-        "Erro de Cálculo / Divergência de Valor", "Erro de Transmissão (Governo)",
-        "Indisponibilidade / Falha de Acesso", "Interesse Comercial / Aquisição",
-        "Outro", "Risco de Churn / Insatisfação", "Solicitação Administrativa (Financeiro)",
-        "Solicitação de Serviço Interno / Infra"
-    ]
-    
-    CATEGORIAS_CAUSA = [
-        "Defeito de Software / Bug", "Dúvida / Negócio (Não Técnico)",
-        "Erro Operacional / Parametrização", "Falha de Ambiente / Infraestrutura",
-        "Fator Externo / Terceiros", "Gestão de Acesso / Identidade",
-        "Inconsistência de Dados / Banco", "Limitação do Sistema / By Design", "Outro"
-    ]
-    
-    CATEGORIAS_SOLUCAO = [
-        "Configuração e Parametrização", "Correção de Dados / Saneamento",
-        "Escalonamento / Correção de Bug", "Intervenção Técnica / Infraestrutura",
-        "Orientação e Educação (Procedimental)", "Outro", "Serviço Administrativo / Comercial"
-    ]
-    
-    EVENTOS_ESOCIAL = ["S-1000", "S-1005", "S-1010", "S-2200", "S-2299", "S-1200", "S-1210", "S-1299"]
-    CODIGOS_ERRO = ["105", "106", "1728", "536", "588", "Access violation", "Violação de PK"]
+    # 1. CARREGAMENTO DE DADOS
+    with st.spinner("Conectando ao Knowledge Graph..."):
+        df_tickets = get_tickets_from_neo4j()
 
-    # --- 2. GERADOR DE DADOS MOCKADOS (ENRIQUECIDO) ---
-    @st.cache_data
-    def load_mock_data(qtd=60):
-        data = []
-        for i in range(1, qtd + 1):
-            nivel_2 = random.choice(list(TAXONOMIA_PERSONA.keys()))
-            nivel_3 = random.choice(TAXONOMIA_PERSONA[nivel_2])
-            cat_sintoma = random.choice(CATEGORIAS_SINTOMA)
-            cat_causa = random.choice(CATEGORIAS_CAUSA)
-            cat_solucao = random.choice(CATEGORIAS_SOLUCAO)
-            
-            evento = None
-            erro = None
-            detalhe_extra = ""
-
-            # Lógica simples para contexto
-            if nivel_2 == "eSocial":
-                evento = random.choice(EVENTOS_ESOCIAL)
-                if cat_sintoma == "Erro de Transmissão (Governo)":
-                    erro = random.choice(CODIGOS_ERRO)
-                    detalhe_extra = f"retornando erro {erro}."
-                else:
-                    detalhe_extra = "com status aguardando retorno."
-            elif cat_sintoma == "Erro de Cálculo / Divergência de Valor":
-                 detalhe_extra = "com diferença de centavos no líquido."
-            elif cat_sintoma == "Bug de Funcionalidade / Erro de Tela":
-                 erro = random.choice(["Access violation", "Violação de PK"]) if random.random() > 0.5 else None
-                 detalhe_extra = f"apresentando mensagem {erro}." if erro else "travando a tela."
-
-            # Detalhes Gerados
-            detalhe_sintoma = random.choice([
-                f"Cliente relata problema no {nivel_3} {detalhe_extra}",
-                f"Dificuldade em processar {nivel_3}, sistema {detalhe_extra}",
-                f"Ao tentar gerar {nivel_2}, ocorre inconsistência {detalhe_extra}",
-            ])
-
-            detalhe_causa = random.choice([
-                f"Identificado que o cadastro em {nivel_3} estava incompleto.",
-                f"O ambiente do cliente estava sem permissão de escrita na pasta do sistema.",
-                f"Falha na comunicação com o webservice do governo (instabilidade).",
-                f"Bug na versão atual relacionado ao cálculo de {nivel_3}.",
-                f"Usuário desconhecia o parâmetro X na configuração global."
-            ])
-
-            detalhe_solucao = random.choice([
-                f"Orientado cliente a preencher o campo obrigatório em {nivel_3}.",
-                f"Realizado script de correção no banco de dados para ajustar a referência.",
-                f"Aberto chamado para o desenvolvimento (Issue #1234).",
-                f"Atualizado sistema para a versão mais recente (Patch de correção).",
-                f"Reiniciado serviços do Persona e liberado permissões de rede."
-            ])
-
-            # Conversa Simulada
-            conversa = [
-                {"role": "user", "author": "Cliente", "text": f"Olá, estou com problemas no {nivel_2}. {detalhe_sintoma}"},
-                {"role": "assistant", "author": "Agente IA", "text": f"Olá! Entendo. Parece ser um caso de {cat_sintoma}. Poderia me enviar um print?"},
-                {"role": "user", "author": "Cliente", "text": "Segue em anexo. O erro acontece sempre que tento salvar."},
-                {"role": "assistant", "author": "Agente IA", "text": f"Analisando o log, parece que a causa é: {cat_causa}. Sugiro: {detalhe_solucao}"},
-                {"role": "user", "author": "Cliente", "text": "Funcionou! Obrigado."}
-            ]
-
-            ticket = {
-                "id": f"T{i:03d}",
-                "recurso_nivel_1": "Persona SQL",
-                "recurso_nivel_2": nivel_2,
-                "recurso_nivel_3": nivel_3,
-                "sintoma_categoria": cat_sintoma,
-                "sintoma_detalhe": detalhe_sintoma,
-                "causa_categoria": cat_causa,
-                "causa_detalhe": detalhe_causa,
-                "solucao_categoria": cat_solucao,
-                "solucao_detalhe": detalhe_solucao,
-                "evento_esocial": evento if evento else "-",
-                "codigo_erro": erro if erro else "-",
-                "conversa_completa": conversa
-            }
-            data.append(ticket)
-        return pd.DataFrame(data)
-
-    df_tickets = load_mock_data(qtd=60)
-
-    # --- 3. SELETORES E GRÁFICO ---
-    st.markdown("### 🔍 Visão Geral")
-    opcoes_visao = {
-        "Por Causa Raiz": "causa_categoria",
-        "Por Categoria de Sintoma": "sintoma_categoria",
-        "Por Solução Aplicada": "solucao_categoria",
-        "Por Módulo": "recurso_nivel_2",
-        "Por Evento eSocial": "evento_esocial"
-    }
-    
-    col_sel, col_metrics = st.columns([1, 2])
-    with col_sel:
-        visao_selecionada = st.selectbox("Selecione a Taxonomia:", list(opcoes_visao.keys()))
-        coluna_analise = opcoes_visao[visao_selecionada]
-
-    df_chart = df_tickets[df_tickets[coluna_analise] != "-"][coluna_analise].value_counts().reset_index()
-    df_chart.columns = ["Categoria", "Quantidade"]
-
-    with col_metrics:
-        total = len(df_tickets)
-        if not df_chart.empty:
-            top_item = df_chart.iloc[0]["Categoria"]
-            st.metric("Total de Tickets", total, delta=f"Top ofensor: {top_item}", delta_color="inverse")
-
-    st.subheader(f"Distribuição: {visao_selecionada}")
-    
-    if not df_chart.empty:
-        chart = alt.Chart(df_chart).mark_bar(color="#FF4B4B").encode(
-            x=alt.X('Quantidade', title='Qtd Tickets'), 
-            y=alt.Y('Categoria', sort='-x', title=None, axis=alt.Axis(labelLimit=300)),
-            tooltip=['Categoria', 'Quantidade']
-        ).properties(height=350)
-        
-        text = chart.mark_text(align='left', baseline='middle', dx=3).encode(text='Quantidade')
-        st.altair_chart(chart + text, use_container_width=True)
+    if df_tickets.empty:
+        st.warning("📭 O Knowledge Graph está vazio ou inacessível. Realize a ingestão na aba anterior.")
     else:
-        st.warning("Nenhum dado para esta visão.")
+        # Processamento de listas para exibição (remove colchetes feios)
+        df_tickets['erros_str'] = df_tickets['lista_erros'].apply(lambda x: ", ".join(x) if x else "-")
+        df_tickets['eventos_str'] = df_tickets['lista_eventos'].apply(lambda x: ", ".join(x) if x else "-")
 
-    st.divider()
+        col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
+        with col_kpi1:
+            st.metric("Total de Tickets (Grafo)", len(df_tickets))
+        with col_kpi2:
+            top_modulo = df_tickets['recurso_nivel_2'].mode()[0] if not df_tickets.empty else "N/A"
+            st.metric("Módulo Mais Crítico", top_modulo)
+        with col_kpi3:
+            top_erro = df_tickets[df_tickets['erros_str'] != "-"]['erros_str'].mode()
+            val_erro = top_erro[0] if not top_erro.empty else "Nenhum"
+            st.metric("Erro Mais Comum", val_erro)
 
-    # --- 4. DETALHAMENTO DA CATEGORIA ---
-    st.markdown(f"### 🔬 Detalhar Categoria: {visao_selecionada}")
-    
-    if not df_chart.empty:
+        st.divider()
+
+        # --- 2. GRÁFICOS E FILTROS ---
+        st.markdown("### 🔍 Distribuição Taxonômica")
+        
+        opcoes_visao = {
+            "Por Categoria de Sintoma": "sintoma_categoria",
+            "Por Causa Raiz": "causa_categoria",
+            "Por Módulo (Recurso N2)": "recurso_nivel_2",
+            "Por Solução Aplicada": "solucao_categoria"
+        }
+        
+        c_sel, c_graph = st.columns([1, 3])
+        
+        with c_sel:
+            visao_selecionada = st.radio("Agrupar por:", list(opcoes_visao.keys()))
+            coluna_analise = opcoes_visao[visao_selecionada]
+
+        # Prepara dados para o gráfico
+        df_chart = df_tickets[coluna_analise].value_counts().reset_index()
+        df_chart.columns = ["Categoria", "Quantidade"]
+
+        with c_graph:
+            if not df_chart.empty:
+                chart = alt.Chart(df_chart).mark_bar(color="#FF4B4B", cornerRadiusEnd=4).encode(
+                    x=alt.X('Quantidade', title=None), 
+                    y=alt.Y('Categoria', sort='-x', title=None),
+                    tooltip=['Categoria', 'Quantidade']
+                ).properties(height=300)
+                
+                text = chart.mark_text(align='left', baseline='middle', dx=3).encode(text='Quantidade')
+                st.altair_chart(chart + text, use_container_width=True)
+
+        # --- 3. DRILL DOWN (TABELA) ---
+        st.markdown(f"### 🔬 Detalhar: {visao_selecionada}")
+        
         col_drill1, col_drill2 = st.columns([1, 3])
         with col_drill1:
-            categorias = df_chart["Categoria"].tolist()
-            cat_foco = st.radio("Selecione o grupo:", options=categorias)
+            cats = df_chart["Categoria"].tolist()
+            if cats:
+                cat_foco = st.selectbox("Filtrar Categoria:", cats)
+            else:
+                cat_foco = None
 
         with col_drill2:
-            df_filtro = df_tickets[df_tickets[coluna_analise] == cat_foco]
-            st.write(f"**{len(df_filtro)} Tickets em:** `{cat_foco}`")
-            st.dataframe(
-                df_filtro[["id", "recurso_nivel_2", "recurso_nivel_3", "sintoma_detalhe"]], 
-                use_container_width=True, hide_index=True,
-                column_config={"id": "ID", "sintoma_detalhe": st.column_config.TextColumn("Resumo", width="large")}
-            )
-    
-    st.divider()
-
-    # --- 5. FICHA TÉCNICA DO TICKET (ATUALIZADA) ---
-    st.markdown("### 🎫 Ficha Técnica do Ticket")
-    st.caption("Pesquise pelo ID para ver a classificação completa e o histórico.")
-
-    col_search, col_card = st.columns([1, 3])
-
-    with col_search:
-        search_id = st.text_input("Digite o ID do Ticket:", placeholder="Ex: T015").upper()
-        if not df_tickets.empty:
-            sample_id = df_tickets.iloc[0]['id']
-            st.caption(f"Tente: {sample_id}")
-
-    with col_card:
-        if search_id:
-            ticket_found = df_tickets[df_tickets["id"] == search_id]
-            
-            if not ticket_found.empty:
-                t = ticket_found.iloc[0]
+            if cat_foco:
+                df_filtro = df_tickets[df_tickets[coluna_analise] == cat_foco]
+                st.write(f"**{len(df_filtro)} Tickets encontrados**")
                 
-                # CARD PRINCIPAL
+                st.dataframe(
+                    df_filtro[["id", "recurso_nivel_3", "sintoma_detalhe", "erros_str"]], 
+                    use_container_width=True, hide_index=True,
+                    column_config={
+                        "id": st.column_config.TextColumn("ID", width="small"),
+                        "recurso_nivel_3": st.column_config.TextColumn("Funcionalidade", width="medium"),
+                        "sintoma_detalhe": st.column_config.TextColumn("Resumo do Problema", width="large"),
+                        "erros_str": "Códigos"
+                    }
+                )
+
+        st.divider()
+
+        # --- 4. FICHA TÉCNICA (DETALHES DO TICKET) ---
+        st.markdown("### 🎫 Ficha Técnica do Ticket (Knowledge Graph)")
+        
+        col_search, col_card = st.columns([1, 2])
+
+        with col_search:
+            # Dropdown com busca para facilitar
+            ticket_options = df_tickets["id"].tolist()
+            # Formata para mostrar ID e Titulo no dropdown
+            format_func = lambda x: f"{x} - {df_tickets[df_tickets['id']==x]['titulo'].values[0][:30]}..."
+            
+            selected_id = st.selectbox("Selecione um Ticket:", ticket_options, format_func=format_func)
+            
+            if selected_id:
+                t = df_tickets[df_tickets["id"] == selected_id].iloc[0]
+                
+                st.info(f"**Protocolo:** {t['protocolo']}")
+                st.caption(f"Ingerido em: {t['data_ingestao']}")
+                
+                # Tags/Metadata
+                if t['erros_str'] != "-": 
+                    st.error(f"🛑 Erros: {t['erros_str']}")
+                if t['eventos_str'] != "-": 
+                    st.warning(f"📅 Eventos: {t['eventos_str']}")
+
+        with col_card:
+            if selected_id:
                 with st.container(border=True):
-                    # Cabeçalho
-                    c1, c2 = st.columns([3, 1])
-                    c1.markdown(f"### 📂 {t['recurso_nivel_1']}")
-                    c1.caption(f"{t['recurso_nivel_2']} > {t['recurso_nivel_3']}")
-                    c2.metric("ID", t['id'])
+                    # Header Hierárquico
+                    st.markdown(f"#### 📂 {t['recurso_nivel_1']} > {t['recurso_nivel_2']}")
+                    st.caption(f"Funcionalidade Específica: **{t['recurso_nivel_3']}**")
                     
                     st.divider()
-
-                    # BLOCO DE CLASSIFICAÇÃO DETALHADA
-                    # Sintoma
-                    st.info(f"**Sintoma ({t['sintoma_categoria']})**")
-                    st.write(f"> {t['sintoma_detalhe']}")
+                    
+                    # Problema
+                    st.markdown(f"**🔴 SINTOMA: {t['sintoma_categoria']}**")
+                    st.write(t['sintoma_detalhe']) # Texto rico vetorizado
+                    
+                    st.divider()
                     
                     # Causa
-                    st.warning(f"**Causa ({t['causa_categoria']})**")
-                    st.write(f"> {t['causa_detalhe']}")
+                    st.markdown(f"**🟡 CAUSA: {t['causa_categoria']}**")
+                    st.write(t['causa_detalhe'])
                     
-                    # Solução
-                    st.success(f"**Solução ({t['solucao_categoria']})**")
-                    st.write(f"> {t['solucao_detalhe']}")
+                    st.divider()
                     
-                    # Dados Técnicos
-                    if t['evento_esocial'] != "-" or t['codigo_erro'] != "-":
-                        st.markdown("---")
-                        t1, t2 = st.columns(2)
-                        if t['evento_esocial'] != "-": t1.metric("Evento eSocial", t['evento_esocial'])
-                        if t['codigo_erro'] != "-": t2.metric("Código de Erro", t['codigo_erro'])
-
-                    # CHAT / CONVERSA COMPLETA
-                    st.markdown("---")
-                    with st.expander("💬 Histórico da Conversa", expanded=False):
-                        for msg in t['conversa_completa']:
-                            avatar = "👤" if msg['role'] == "user" else "🤖"
-                            with st.chat_message(msg['role'], avatar=avatar):
-                                st.write(f"**{msg['author']}:** {msg['text']}")
-
+                    # Solução (Tutorial)
+                    st.markdown(f"**🟢 SOLUÇÃO: {t['solucao_categoria']}**")
+                    # Renderiza passos se houver quebras de linha
+                    for line in t['solucao_detalhe'].split('\n'):
+                        st.write(line)
             else:
-                st.error(f"Ticket **{search_id}** não encontrado.")
-        else:
-            st.info("👈 Digite um ID ao lado para carregar os detalhes.")
+                st.info("Selecione um ticket para ver os detalhes extraídos pela IA.")

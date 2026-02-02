@@ -357,7 +357,12 @@ with tab_admin:
                                     progress_bar.progress(curr / total)
                                     current_action.markdown(f"**{msg}**")
                                 elif step == 'log':
-                                    status_container.markdown(f"`{msg}`")
+                                # Se a mensagem já vier formatada como bloco de código (nosso JSON de debug), 
+                                # não colocamos crases extras.
+                                    if "```" in msg:
+                                        status_container.markdown(msg) # Renderiza o bloco de código JSON bonito
+                                    else:
+                                        status_container.markdown(f"`{msg}`") # Mensagens normais ficam inline
                                 elif step == 'error':
                                     status_container.error(msg)
                                 elif step == 'final':

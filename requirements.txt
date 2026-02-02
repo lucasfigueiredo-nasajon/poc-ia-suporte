@@ -1,6 +1,6 @@
-neo4j
+streamlit>=1.35.0
+altair<6
 pandas
-altair
+neo4j
 langchain-openai
 langchain-neo4j
-streamlit

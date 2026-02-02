@@ -4,3 +4,7 @@ pandas
 neo4j
 langchain-openai
 langchain-neo4j
+python-logging-loki
+flask
+flask-cors
+sentry-sdk

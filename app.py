@@ -725,23 +725,22 @@ with tab_tickets:
     if df_tickets.empty:
         st.warning("📭 Nenhum dado retornado pela API ou falha de conexão.")
     else:
-        # Processamento de listas para exibição
-        # A API retorna listas Python (JSON), convertemos para string bonita para o dataframe
+        # Processamento de listas para exibição (String bonita)
         df_tickets['erros_str'] = df_tickets['lista_erros'].apply(lambda x: ", ".join(x) if isinstance(x, list) and x else "-")
         df_tickets['eventos_str'] = df_tickets['lista_eventos'].apply(lambda x: ", ".join(x) if isinstance(x, list) and x else "-")
 
+        # --- KPIs ---
         col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
         with col_kpi1:
             st.metric("Total de Tickets (Amostra)", len(df_tickets))
         with col_kpi2:
-            # Verifica se a coluna existe antes de calcular mode
             if 'recurso_nivel_2' in df_tickets.columns and not df_tickets['recurso_nivel_2'].empty:
                 top_modulo = df_tickets['recurso_nivel_2'].mode()[0]
             else:
                 top_modulo = "N/A"
             st.metric("Módulo Mais Crítico", top_modulo)
         with col_kpi3:
-            # Lógica para achar o erro mais comum dentro das listas
+            # Lógica para achar o erro mais comum (achatando as listas)
             todos_erros = []
             for lista in df_tickets['lista_erros']:
                 if isinstance(lista, list): todos_erros.extend(lista)
@@ -758,11 +757,14 @@ with tab_tickets:
         # --- 2. GRÁFICOS E FILTROS ---
         st.markdown("### 🔍 Distribuição Taxonômica")
         
+        # ADICIONADO: Opções de Erro e Evento no dicionário
         opcoes_visao = {
             "Por Categoria de Sintoma": "sintoma_categoria",
             "Por Causa Raiz": "causa_categoria",
             "Por Módulo (Recurso N2)": "recurso_nivel_2",
-            "Por Solução Aplicada": "solucao_categoria"
+            "Por Solução Aplicada": "solucao_categoria",
+            "Por Código de Erro": "lista_erros",   # <--- NOVO
+            "Por Evento eSocial": "lista_eventos"  # <--- NOVO
         }
         
         c_sel, c_graph = st.columns([1, 3])
@@ -771,9 +773,19 @@ with tab_tickets:
             visao_selecionada = st.radio("Agrupar por:", list(opcoes_visao.keys()))
             coluna_analise = opcoes_visao[visao_selecionada]
 
-        # Prepara dados para o gráfico
+        # LÓGICA DE PREPARAÇÃO DO GRÁFICO
         if coluna_analise in df_tickets.columns:
-            df_chart = df_tickets[coluna_analise].value_counts().reset_index()
+            
+            # Se for Erro ou Evento (Listas), precisamos usar EXPLODE para contar individualmente
+            if coluna_analise in ["lista_erros", "lista_eventos"]:
+                df_exploded = df_tickets.explode(coluna_analise)
+                # Remove nulos e strings vazias geradas pelo explode
+                df_exploded = df_exploded[df_exploded[coluna_analise].notna() & (df_exploded[coluna_analise] != "")]
+                df_chart = df_exploded[coluna_analise].value_counts().reset_index()
+            else:
+                # Lógica padrão para colunas simples (Sintoma, Causa, Modulo)
+                df_chart = df_tickets[coluna_analise].value_counts().reset_index()
+
             df_chart.columns = ["Categoria", "Quantidade"]
 
             with c_graph:
@@ -786,31 +798,44 @@ with tab_tickets:
                     
                     text = chart.mark_text(align='left', baseline='middle', dx=3).encode(text='Quantidade')
                     st.altair_chart(chart + text, use_container_width=True)
+                else:
+                    st.info("Sem dados suficientes para gerar gráfico desta categoria.")
         
-        # --- 3. DRILL DOWN (TABELA) ---
+        # --- 3. DRILL DOWN (TABELA DETALHADA) ---
         st.markdown(f"### 🔬 Detalhar: {visao_selecionada}")
         
         col_drill1, col_drill2 = st.columns([1, 3])
         with col_drill1:
             cats = df_chart["Categoria"].tolist() if not df_chart.empty else []
             if cats:
-                cat_foco = st.selectbox("Filtrar Categoria:", cats)
+                cat_foco = st.selectbox(f"Filtrar {visao_selecionada}:", cats)
             else:
                 cat_foco = None
 
         with col_drill2:
             if cat_foco and coluna_analise in df_tickets.columns:
-                df_filtro = df_tickets[df_tickets[coluna_analise] == cat_foco]
+                
+                # LÓGICA DE FILTRAGEM (Simples vs Lista)
+                if coluna_analise in ["lista_erros", "lista_eventos"]:
+                    # Filtra verificando se o item selecionado está DENTRO da lista daquela linha
+                    # Ex: Se selecionei "Erro 106", traz todas as linhas onde "Erro 106" está na lista_erros
+                    mask = df_tickets[coluna_analise].apply(lambda x: cat_foco in x if isinstance(x, list) else False)
+                    df_filtro = df_tickets[mask]
+                else:
+                    # Filtro exato padrão
+                    df_filtro = df_tickets[df_tickets[coluna_analise] == cat_foco]
+
                 st.write(f"**{len(df_filtro)} Tickets encontrados**")
                 
                 st.dataframe(
-                    df_filtro[["id", "recurso_nivel_3", "sintoma_detalhe", "erros_str"]], 
+                    df_filtro[["id", "recurso_nivel_3", "sintoma_detalhe", "erros_str", "eventos_str"]], 
                     use_container_width=True, hide_index=True,
                     column_config={
                         "id": st.column_config.TextColumn("ID", width="small"),
                         "recurso_nivel_3": st.column_config.TextColumn("Funcionalidade", width="medium"),
                         "sintoma_detalhe": st.column_config.TextColumn("Resumo do Problema", width="large"),
-                        "erros_str": "Códigos"
+                        "erros_str": st.column_config.TextColumn("Códigos de Erro", width="medium"),
+                        "eventos_str": st.column_config.TextColumn("Eventos eSocial", width="medium")
                     }
                 )
 
@@ -824,7 +849,6 @@ with tab_tickets:
         with col_search:
             ticket_options = df_tickets["id"].tolist()
             # Formata para mostrar ID e Titulo no dropdown
-            # Tratamento de erro caso o titulo seja None ou falte
             format_func = lambda x: f"{x} - {str(df_tickets[df_tickets['id']==x]['titulo'].values[0])[:30]}..."
             
             selected_id = st.selectbox("Selecione um Ticket:", ticket_options, format_func=format_func)
@@ -835,6 +859,7 @@ with tab_tickets:
                 st.info(f"**Protocolo:** {t.get('protocolo', 'N/A')}")
                 st.caption(f"Ingerido em: {t.get('data_ingestao', 'N/A')}")
                 
+                # Destaque visual para Erros e Eventos
                 if t['erros_str'] != "-": 
                     st.error(f"🛑 Erros: {t['erros_str']}")
                 if t['eventos_str'] != "-": 
@@ -844,25 +869,25 @@ with tab_tickets:
             if selected_id:
                 with st.container(border=True):
                     # Header Hierárquico
-                    st.markdown(f"#### 📂 {t['recurso_nivel_1']} > {t['recurso_nivel_2']}")
-                    st.caption(f"Funcionalidade Específica: **{t['recurso_nivel_3']}**")
+                    st.markdown(f"#### 📂 {t.get('recurso_nivel_1', 'Geral')} > {t.get('recurso_nivel_2', 'Geral')}")
+                    st.caption(f"Funcionalidade Específica: **{t.get('recurso_nivel_3', 'Não classificado')}**")
                     
                     st.divider()
                     
                     # Problema
-                    st.markdown(f"**🔴 SINTOMA: {t['sintoma_categoria']}**")
-                    st.write(t['sintoma_detalhe']) 
+                    st.markdown(f"**🔴 SINTOMA: {t.get('sintoma_categoria', 'N/A')}**")
+                    st.write(t.get('sintoma_detalhe', 'Sem detalhes.')) 
                     
                     st.divider()
                     
                     # Causa
-                    st.markdown(f"**🟡 CAUSA: {t['causa_categoria']}**")
-                    st.write(t['causa_detalhe'])
+                    st.markdown(f"**🟡 CAUSA: {t.get('causa_categoria', 'N/A')}**")
+                    st.write(t.get('causa_detalhe', 'Causa não identificada.'))
                     
                     st.divider()
                     
                     # Solução (Tutorial)
-                    st.markdown(f"**🟢 SOLUÇÃO: {t['solucao_categoria']}**")
+                    st.markdown(f"**🟢 SOLUÇÃO: {t.get('solucao_categoria', 'N/A')}**")
                     # Renderiza passos se houver quebras de linha
                     sol_text = t.get('solucao_detalhe', '')
                     if sol_text:

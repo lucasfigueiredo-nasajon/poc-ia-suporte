@@ -732,7 +732,7 @@ with tab_tickets:
         # --- KPIs ---
         col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
         with col_kpi1:
-            st.metric("Total de Tickets (Amostra)", len(df_tickets))
+            st.metric("Total de Tickets (Amostra)", df_tickets['id'].nunique())
         with col_kpi2:
             if 'recurso_nivel_2' in df_tickets.columns and not df_tickets['recurso_nivel_2'].empty:
                 top_modulo = df_tickets['recurso_nivel_2'].mode()[0]
@@ -825,10 +825,14 @@ with tab_tickets:
                     # Filtro exato padrão
                     df_filtro = df_tickets[df_tickets[coluna_analise] == cat_foco]
 
-                st.write(f"**{len(df_filtro)} Tickets encontrados**")
+                # 1. Conta IDs únicos para o texto
+                st.write(f"**{df_filtro['id'].nunique()} Tickets encontrados**")
                 
+                # 2. Remove duplicatas baseadas no ID antes de exibir a tabela
+                df_exibicao = df_filtro[["id", "recurso_nivel_3", "sintoma_detalhe", "erros_str", "eventos_str"]].drop_duplicates(subset=['id'])
+
                 st.dataframe(
-                    df_filtro[["id", "recurso_nivel_3", "sintoma_detalhe", "erros_str", "eventos_str"]], 
+                    df_exibicao, 
                     use_container_width=True, hide_index=True,
                     column_config={
                         "id": st.column_config.TextColumn("ID", width="small"),

@@ -32,6 +32,8 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "conversation_id" not in st.session_state:
     st.session_state.conversation_id = str(uuid.uuid4())
+if "vision_description" not in st.session_state:
+    st.session_state.vision_description = None
 
 # --- CABEÇALHO ---
 col1, col2 = st.columns([1, 6])
@@ -64,36 +66,7 @@ with tab_chat:
             st.session_state.messages = []
             st.session_state.conversation_id = str(uuid.uuid4())
             st.rerun()
-    # --- NOVO: UPLOADER DE IMAGEM NA SIDEBAR ---
-    with st.sidebar:
-        st.subheader("🖼️ Análise de Evidência")
-        img_file = st.file_uploader("Envie um print do erro", type=['png', 'jpg', 'jpeg'])
-        
-        if img_file:
-            st.image(img_file, caption="Imagem carregada", use_container_width=True)
-            
-            # Evita reprocessar se for a mesma imagem
-            if "last_img_name" not in st.session_state or st.session_state.last_img_name != img_file.name:
-                with st.spinner("🔍 Analisando evidência visual..."):
-                    try:
-                        # Importação dinâmica para evitar erros de dependência se não usado
-                        from nasajon.service.vision_service import VisionService
-                        vision = VisionService()
-                        # Usa o método analyze_stream do seu serviço
-                        descricao = vision.analyze_stream(img_file)
-                        st.session_state.evidencia_visual = descricao
-                        st.session_state.last_img_name = img_file.name
-                    except Exception as e:
-                        st.error(f"Erro no Vision: {e}")
-            
-            if "evidencia_visual" in st.session_state:
-                with st.expander("📝 Transcrição da Imagem"):
-                    st.write(st.session_state.evidencia_visual)
-        else:
-            # Limpa o estado se removerem a imagem
-            st.session_state.pop("evidencia_visual", None)
-            st.session_state.pop("last_img_name", None)
-    # --- FIM DO NOVO: UPLOADER DE IMAGEM NA SIDEBAR ---
+    
     st.divider()
 
     # --- 2. CONFIGURAÇÕES FIXAS (HARDCODED) ---
@@ -103,7 +76,35 @@ with tab_chat:
     chat_container = st.container()
 
     # --- 4. INPUT DE TEXTO ---
+    # --- NOVO: UPLOADER ACOPLADO AO INPUT ---
+    with st.container():
+        img_col1, img_col2 = st.columns([0.1, 0.9])
+        with img_col1:
+            # Botão visual para toggle ou apenas um label
+            st.markdown("📎")
+        with img_col2:
+            img_file = st.file_uploader(
+                "Anexar evidência visual para esta mensagem", 
+                type=['png', 'jpg', 'jpeg'],
+                label_visibility="collapsed"
+            )
+
+    # Processamento imediato da imagem se houver upload
+    if img_file and (st.session_state.get("last_img_id") != img_file.name):
+        with st.spinner("🔍 Analisando imagem..."):
+            try:
+                from nasajon.service.vision_service import VisionService
+                vision = VisionService()
+                st.session_state.vision_description = vision.analyze_stream(img_file)
+                st.session_state.last_img_id = img_file.name
+                st.toast("Imagem analisada com sucesso!", icon="✅")
+            except Exception as e:
+                st.error(f"Erro ao processar imagem: {e}")
+
+    # --- 4. INPUT DE TEXTO (Seu código original continua aqui) ---
     prompt = st.chat_input("Olá! Em que posso ajudar?")
+    # --- FIM DO NOVO: UPLOADER ACOPLADO AO INPUT ---
+    #prompt = st.chat_input("Olá! Em que posso ajudar?")
 
     # --- 5. RENDERIZAÇÃO DO HISTÓRICO ---
     with chat_container:
@@ -127,26 +128,43 @@ with tab_chat:
     # --- 6. PROCESSAMENTO DO PROMPT ---
     if prompt:
         with chat_container:
-            st.chat_message("user", avatar="👤").markdown(prompt)
-            st.session_state.messages.append({"role": "user", "content": prompt})
+            # 1. Recupera descrição da imagem se houver (Contexto Visual)
+            contexto_visual = st.session_state.get("vision_description")
+            
+            # 2. Exibe apenas a mensagem do usuário (Visualmente Limpo)
+            # Se houver imagem, mostramos um pequeno ícone indicativo
+            display_text = prompt
+            if contexto_visual:
+                display_text = f"📎 *[Imagem Anexada]*\n\n{prompt}"
+            
+            st.chat_message("user", avatar="👤").markdown(display_text)
+            
+            # Salva no histórico visual (apenas o texto original para não poluir)
+            st.session_state.messages.append({"role": "user", "content": display_text})
 
             with st.chat_message("assistant", avatar="🤖"):
                 message_placeholder = st.empty()
                 message_placeholder.markdown("🧠 *Analisando solicitação...*")
                 
                 try:
-                    # Prepara histórico
+                    # 3. Prepara o Prompt Enriquecido para o Agente
+                    prompt_final = prompt
+                    if contexto_visual:
+                        prompt_final = f" [EVIDÊNCIA VISUAL DA TELA]: {contexto_visual}\n\n[PERGUNTA]: {prompt}"
+
+                    # 4. Prepara histórico (excluindo a mensagem atual que já vai no 'message')
                     historico_para_enviar = []
                     for msg in st.session_state.messages[:-1]:
-                        msg_payload = {"role": msg["role"], "content": msg["content"]}
+                        # Limpa marcadores visuais do histórico para não confundir o modelo
+                        content_clean = msg["content"].replace("📎 *[Imagem Anexada]*\n\n", "")
+                        msg_payload = {"role": msg["role"], "content": content_clean}
                         if "agent" in msg: msg_payload["agent"] = msg["agent"]
                         historico_para_enviar.append(msg_payload)
 
                     payload = {
                         "conversation_id": st.session_state.conversation_id,
-                        "message": prompt,
+                        "message": prompt_final, # Enviamos o prompt com a descrição da imagem
                         "history": historico_para_enviar,
-                        # Aqui usamos a variável 'sistema' que definimos fixa no topo
                         "context": {"sistema": sistema} 
                     }
                     
@@ -155,10 +173,16 @@ with tab_chat:
                         "Content-Type": "application/json"
                     }
                     
-                    # Chama API
+                    # 5. Chama API
                     response = requests.post(CHAT_URL, json=payload, headers=headers, timeout=60)
                     
                     if response.status_code == 200:
+                        # SUCESSO!
+                        
+                        # A. Limpa o buffer da imagem para não repetir na próxima
+                        st.session_state.vision_description = None
+                        st.session_state.last_img_id = None # Reseta ID para permitir re-upload se quiser
+                        
                         data = response.json()
                         bot_response = data.get("response") or data.get("answer") or "⚠️ Resposta vazia."
                         metadata = data.get("metadata", {})

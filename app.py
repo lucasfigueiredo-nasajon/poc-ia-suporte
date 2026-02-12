@@ -64,7 +64,36 @@ with tab_chat:
             st.session_state.messages = []
             st.session_state.conversation_id = str(uuid.uuid4())
             st.rerun()
-    
+    # --- NOVO: UPLOADER DE IMAGEM NA SIDEBAR ---
+    with st.sidebar:
+        st.subheader("🖼️ Análise de Evidência")
+        img_file = st.file_uploader("Envie um print do erro", type=['png', 'jpg', 'jpeg'])
+        
+        if img_file:
+            st.image(img_file, caption="Imagem carregada", use_container_width=True)
+            
+            # Evita reprocessar se for a mesma imagem
+            if "last_img_name" not in st.session_state or st.session_state.last_img_name != img_file.name:
+                with st.spinner("🔍 Analisando evidência visual..."):
+                    try:
+                        # Importação dinâmica para evitar erros de dependência se não usado
+                        from nasajon.service.vision_service import VisionService
+                        vision = VisionService()
+                        # Usa o método analyze_stream do seu serviço
+                        descricao = vision.analyze_stream(img_file)
+                        st.session_state.evidencia_visual = descricao
+                        st.session_state.last_img_name = img_file.name
+                    except Exception as e:
+                        st.error(f"Erro no Vision: {e}")
+            
+            if "evidencia_visual" in st.session_state:
+                with st.expander("📝 Transcrição da Imagem"):
+                    st.write(st.session_state.evidencia_visual)
+        else:
+            # Limpa o estado se removerem a imagem
+            st.session_state.pop("evidencia_visual", None)
+            st.session_state.pop("last_img_name", None)
+    # --- FIM DO NOVO: UPLOADER DE IMAGEM NA SIDEBAR ---
     st.divider()
 
     # --- 2. CONFIGURAÇÕES FIXAS (HARDCODED) ---

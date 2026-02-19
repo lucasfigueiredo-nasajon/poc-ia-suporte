@@ -470,60 +470,60 @@ with tab_admin:
 
             #-----------------------
             # --- MOVA PARA CÁ: FORA DE QUALQUER IF DE DADOS ---
-st.markdown("---")
-st.markdown("### 🛠️ Manutenção do Banco")
-
-with st.expander("🗑️ Zona de Perigo: Manutenção de Tickets"):
-    # 1. Deletar Ticket Específico
-    st.subheader("Deletar Ticket Único")
-    col_del_id, col_del_btn = st.columns([3, 1])
+    st.markdown("---")
+    st.markdown("### 🛠️ Manutenção do Banco")
     
-    ticket_id_to_delete = col_del_id.text_input(
-        "Digite o ID exato do Ticket (ex: T-123-A):",
-        placeholder="T-000-X",
-        key="input_del_ticket"
-    )
+    with st.expander("🗑️ Zona de Perigo: Manutenção de Tickets"):
+        # 1. Deletar Ticket Específico
+        st.subheader("Deletar Ticket Único")
+        col_del_id, col_del_btn = st.columns([3, 1])
+        
+        ticket_id_to_delete = col_del_id.text_input(
+            "Digite o ID exato do Ticket (ex: T-123-A):",
+            placeholder="T-000-X",
+            key="input_del_ticket"
+        )
+        
+        if col_del_btn.button("Deletar Ticket", type="secondary", use_container_width=True):
+            if ticket_id_to_delete:
+                try:
+                    CYPHER_DEL_URL = "https://api.nasajon.app/nsj-ia-suporte/debug/cypher"
+                    query_del = f"""
+                    MATCH (t:Ticket {{id: '{ticket_id_to_delete}'}})
+                    OPTIONAL MATCH (t)-[:APRESENTA_SINTOMA|POSSUI_CAUSA|APLICOU_SOLUCAO]->(det)
+                    DETACH DELETE t, det
+                    """
+                    headers = {"Content-Type": "application/json", "X-Tenant-ID": tenant_id}
+                    res_del = requests.post(CYPHER_DEL_URL, json={"query": query_del}, headers=headers)
+                    
+                    if res_del.status_code == 200:
+                        st.success(f"✅ Ticket `{ticket_id_to_delete}` removido.")
+                    else:
+                        st.error(f"❌ Erro: {res_del.text}")
+                except Exception as e:
+                    st.error(f"🔌 Erro: {str(e)}")
+            else:
+                st.warning("Informe um ID.")
     
-    if col_del_btn.button("Deletar Ticket", type="secondary", use_container_width=True):
-        if ticket_id_to_delete:
+        st.divider()
+    
+        # 2. Listar Últimos IDs (Facilitador que você pediu)
+        st.subheader("IDs Recentes no Banco")
+        if st.button("🔍 Listar últimos 10 tickets"):
             try:
-                CYPHER_DEL_URL = "https://api.nasajon.app/nsj-ia-suporte/debug/cypher"
-                query_del = f"""
-                MATCH (t:Ticket {{id: '{ticket_id_to_delete}'}})
-                OPTIONAL MATCH (t)-[:APRESENTA_SINTOMA|POSSUI_CAUSA|APLICOU_SOLUCAO]->(det)
-                DETACH DELETE t, det
-                """
+                CYPHER_LIST_URL = "https://api.nasajon.app/nsj-ia-suporte/debug/cypher"
+                query_list = "MATCH (t:Ticket) RETURN t.id as id, t.titulo as titulo ORDER BY t.ingested_at DESC LIMIT 10"
                 headers = {"Content-Type": "application/json", "X-Tenant-ID": tenant_id}
-                res_del = requests.post(CYPHER_DEL_URL, json={"query": query_del}, headers=headers)
+                res_list = requests.post(CYPHER_LIST_URL, json={"query": query_list}, headers=headers)
                 
-                if res_del.status_code == 200:
-                    st.success(f"✅ Ticket `{ticket_id_to_delete}` removido.")
-                else:
-                    st.error(f"❌ Erro: {res_del.text}")
+                if res_list.status_code == 200:
+                    data = res_list.json()
+                    if data:
+                        st.table(data) # Mostra uma tabelinha com ID e Título
+                    else:
+                        st.info("Nenhum ticket encontrado.")
             except Exception as e:
-                st.error(f"🔌 Erro: {str(e)}")
-        else:
-            st.warning("Informe um ID.")
-
-    st.divider()
-
-    # 2. Listar Últimos IDs (Facilitador que você pediu)
-    st.subheader("IDs Recentes no Banco")
-    if st.button("🔍 Listar últimos 10 tickets"):
-        try:
-            CYPHER_LIST_URL = "https://api.nasajon.app/nsj-ia-suporte/debug/cypher"
-            query_list = "MATCH (t:Ticket) RETURN t.id as id, t.titulo as titulo ORDER BY t.ingested_at DESC LIMIT 10"
-            headers = {"Content-Type": "application/json", "X-Tenant-ID": tenant_id}
-            res_list = requests.post(CYPHER_LIST_URL, json={"query": query_list}, headers=headers)
-            
-            if res_list.status_code == 200:
-                data = res_list.json()
-                if data:
-                    st.table(data) # Mostra uma tabelinha com ID e Título
-                else:
-                    st.info("Nenhum ticket encontrado.")
-        except Exception as e:
-            st.error(f"Erro ao listar: {e}")
+                st.error(f"Erro ao listar: {e}")
             #-----------------------
 
 # ---------------------------------------------------------
